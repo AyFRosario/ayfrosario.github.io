@@ -399,6 +399,7 @@ export function mount(root, { param: cid }) {
     }
   });
   const soltarLector = escucharLectorUSB((codigo) => {
+    if (document.querySelector(".modal-fondo")) return false; // con una ventana abierta (cobro, opciones…) no se carga nada
     const r = porCodigo(codigo);
     beep(r.ok ? "ok" : "error");
     toast(r.texto, r.ok ? "" : "error");

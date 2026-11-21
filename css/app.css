@@ -889,3 +889,7 @@ body.offline .barra-sup { box-shadow: inset 0 -3px 0 var(--rojo); }
 .res-copiar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .res-copiar span { flex: 1; }
 #cFondoHint:empty { display: none; }
+
+/* ── v1.0.1: código leído con el lector ── */
+@keyframes codLeido { 0% { box-shadow: 0 0 0 3px rgba(46, 125, 79, .55); border-color: var(--verde); } 100% { box-shadow: 0 0 0 0 rgba(46, 125, 79, 0); } }
+.cod-leido { animation: codLeido 1.2s ease-out; }

@@ -159,36 +159,82 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
   });
 }
 
+// ── Recuadros de código (data-codigo) ──
+// Al tocarlos se selecciona lo que tienen: el próximo código leído lo reemplaza.
+let recienEnfocado = null;
+document.addEventListener("focusin", (e) => {
+  const t = e.target;
+  if (!t.matches?.("[data-codigo]")) return;
+  t.select();
+  recienEnfocado = t;
+  setTimeout(() => { if (recienEnfocado === t) recienEnfocado = null; }, 500);
+});
+document.addEventListener("mouseup", (e) => {
+  // el clic que dio el foco no debe deshacer la selección
+  if (recienEnfocado && e.target === recienEnfocado) { e.preventDefault(); recienEnfocado.select(); recienEnfocado = null; }
+});
+
+/** Escribe un código en un recuadro de código, reemplazando lo que hubiera, y avisa. */
+export function ponerCodigo(input, codigo) {
+  input.value = codigo;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  avisarCodigo(input);
+}
+/** Marca el recuadro, suena y dispara "codigo-leido" con lo que tiene escrito. */
+function avisarCodigo(input) {
+  const codigo = input.value.trim();
+  if (!codigo) return;
+  if (codigo !== input.value) input.value = codigo;
+  input.classList.remove("cod-leido");
+  void input.offsetWidth;
+  input.classList.add("cod-leido");
+  beep("ok");
+  vibrar(40);
+  input.dispatchEvent(new CustomEvent("codigo-leido", { bubbles: true, detail: codigo }));
+}
+
 /**
- * Lector de mano que "tipea" el código y aprieta Enter.
- * Se distingue de una persona porque las teclas llegan a menos de 50 ms.
+ * Lector de mano (USB o Bluetooth) que "tipea" el código y aprieta Enter o Tab.
+ *
+ * - Si el cursor está en un recuadro de código (data-codigo), lo que llega queda
+ *   escrito ahí, a cualquier velocidad, y el Enter no envía el formulario.
+ * - Si no, se lo distingue de una persona porque las teclas llegan muy seguidas,
+ *   y se llama a onCodigo(codigo, destino). Si devuelve false, la pantalla
+ *   no lo usa y todo queda como si se hubiera tipeado (no se borra nada).
+ *   Si lo usa, se saca el código del recuadro donde se tipeó.
  * Devuelve una función para dejar de escuchar.
  */
 export function escucharLectorUSB(onCodigo) {
   let buf = "", ultimoT = 0, inicio = 0;
   const h = (e) => {
-    if (document.querySelector(".escaner")) return;
+    if (document.querySelector(".escaner") || e.repeat) return;
     const t = performance.now();
-    if (e.key === "Enter") {
-      const rapido = buf.length >= 6 && (t - inicio) / buf.length < 50;
-      if (rapido) {
-        e.preventDefault();
-        e.stopPropagation();
-        const tgt = e.target;
-        if (tgt && typeof tgt.value === "string" && tgt.value.endsWith(buf)) {
-          tgt.value = tgt.value.slice(0, -buf.length);
-          tgt.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        const codigo = buf;
-        buf = "";
-        onCodigo(codigo);
-        return;
-      }
+    const tgt = e.target;
+    const editable = tgt && typeof tgt.value === "string";
+    if (e.key === "Enter" && editable && tgt.matches?.("[data-codigo]")) {
+      e.preventDefault();
+      e.stopPropagation();
       buf = "";
+      avisarCodigo(tgt);
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      const codigo = buf;
+      const rapido = codigo.length >= 4 && (t - inicio) / codigo.length < 70 && t - ultimoT < 300;
+      buf = "";
+      if (!rapido || (editable && tgt.matches?.("[data-codigo]"))) return;
+      if (onCodigo(codigo, tgt) === false) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (editable && tgt.value.endsWith(codigo)) {
+        tgt.value = tgt.value.slice(0, -codigo.length);
+        tgt.dispatchEvent(new Event("input", { bubbles: true }));
+      }
       return;
     }
     if (e.key.length !== 1) return;
-    if (t - ultimoT > 80) { buf = ""; inicio = t; }
+    // Entre tecla y tecla un lector tarda pocos milisegundos; los Bluetooth a veces hacen una pausa
+    if (t - ultimoT > 300) { buf = ""; inicio = t; }
     buf += e.key;
     ultimoT = t;
   };

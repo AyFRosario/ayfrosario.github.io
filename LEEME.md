@@ -1,4 +1,4 @@
-# A&F — versión 1.0
+# A&F — versión 1.0.1
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -311,13 +311,20 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
 
 - **Android (Chrome):** usa el lector que trae el navegador. Es rápido y funciona sin conexión.
 - **iPhone:** Safari no trae ese lector, así que la primera vez se descarga uno en WebAssembly (ZXing, unos cientos de KB). Después queda guardado.
-- **PC:** cualquier lector de mano USB o Bluetooth "tipo teclado" funciona en la comanda y en Productos, sin configurar nada.
+- **Lector de mano (gatillo):** cualquier lector USB o Bluetooth "tipo teclado" funciona en PC, tablet o celular, sin configurar nada. Puede terminar con Enter o con Tab.
+  - **En la ficha del producto,** el código siempre va al recuadro **Código**, aunque el cursor esté en otro campo. El Enter del lector no guarda la ficha. Si el código ya es de otro producto, avisa en el momento.
+  - **Al tocar el recuadro Código** se selecciona lo que tiene, así el próximo escaneo reemplaza el código viejo. Ahí funciona a cualquier velocidad, aunque el lector Bluetooth haga pausas.
+  - **En la lista de Productos,** escanear abre ese producto, o uno nuevo con el código ya puesto si no existe.
+  - **En la comanda** carga el producto a la mesa. Si hay una ventana abierta (cobro, opciones…), no carga nada.
+  - **En Nueva compra** cada lectura suma una unidad del producto.
 - **Dónde se escanea:**
   - en la comanda, para cargar una lata o una botella a la mesa;
   - en Productos, para cargar el código;
   - en **Productos → Escanear → Asignar códigos**, que muestra uno por uno los productos sin código (primero bebidas y envasados): escaneás el envase y pasa al siguiente, con botones para saltear o volver;
   - en **Productos → Escanear → Ingreso de mercadería**, donde cada escaneo suma stock y se puede elegir de a 1, 6, 12 o 24. Los códigos que no existen se pueden **asignar a un producto que ya está cargado** (y se suman las unidades) o dar de alta como producto nuevo.
 - La cámara solo funciona con `https` (GitHub Pages ya lo tiene) o en `localhost`.
+
+**v1.0.1:** el lector de mano borraba el código cuando el cursor estaba en el recuadro **Código** de la ficha del producto. Ya está corregido.
 
 ## 5. Sin conexión
 

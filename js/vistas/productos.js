@@ -5,7 +5,7 @@ import { S, categorias, productoPorCodigo, SECTORES, log, insumosBajos } from ".
 import { db, inc } from "../db.js";
 import { esc, fmt, num, icon, modal, toast, confirmar, pedirTexto } from "../util.js";
 import { buscar } from "../buscar.js";
-import { abrirEscaner, escucharLectorUSB, precargarEscaner } from "../scanner.js";
+import { abrirEscaner, escucharLectorUSB, precargarEscaner, ponerCodigo } from "../scanner.js";
 import { menuExcel, abrirImportador, descargarPlantilla, precargarExcel, ajustarCategoria } from "../importar.js";
 import { normalizar } from "../util.js";
 import { administrarOpciones, htmlGruposProducto, leerGruposProducto } from "../opciones.js";
@@ -96,7 +96,7 @@ export function mount(root, { param } = {}) {
           <small class="ayuda">"Lo sirve el mozo": latas, botellas o agua que no pasan por cocina ni barra.</small>
         </div>
         <label class="campo"><span>Código de barras</span>
-          <div class="input-boton"><input class="input" id="eCod" inputmode="numeric" value="${esc(p.codigo || "")}" placeholder="Opcional"><button type="button" class="btn" data-act="scanCod">${icon("scan")}</button></div>
+          <div class="input-boton"><input class="input" id="eCod" data-codigo inputmode="numeric" autocomplete="off" value="${esc(p.codigo || "")}" placeholder="Opcional: tocá acá y escaneá"><button type="button" class="btn" data-act="scanCod">${icon("scan")}</button></div>
         </label>
         <label class="switch"><input type="checkbox" id="eCtl" ${p.controlStock ? "checked" : ""}><span>Controlar stock</span></label>
         <div class="dos-col" id="eStockWrap" ${p.controlStock ? "" : "hidden"}>
@@ -128,8 +128,14 @@ export function mount(root, { param } = {}) {
     if (!cats.length) { catSel.value = "__nueva"; catNueva.hidden = false; }
     m.el.querySelector('[data-act="scanCod"]').onclick = async () => {
       const c = await abrirEscaner({ titulo: "Código del producto" });
-      if (c) $("#eCod").value = c;
+      if (c) ponerCodigo($("#eCod"), c);
     };
+    // Al leer un código (lector o cámara), avisar enseguida si ya es de otro producto
+    $("#eCod").addEventListener("codigo-leido", (e) => {
+      const otro = productoPorCodigo(e.detail);
+      if (otro && otro.id !== p.id) toast(`Ese código ya es de "${otro.nombre}"`, "error");
+      else toast(`Código ${e.detail} cargado`);
+    });
     const borrar = m.el.querySelector('[data-act="borrar"]');
     if (borrar) borrar.onclick = async () => {
       if (!(await confirmar(`¿Borrar "${p.nombre}"? Las ventas pasadas no se modifican. Si lo vas a volver a usar, mejor desactivalo.`, { ok: "Borrar", peligro: true }))) return;
@@ -426,10 +432,14 @@ export function mount(root, { param } = {}) {
   const busq = root.querySelector("#pBusq");
   busq.addEventListener("input", () => { q = busq.value.trim(); render(); });
   const soltar = escucharLectorUSB((codigo) => {
-    if (document.querySelector(".modal-fondo")) return;
+    // Con la ficha abierta, el código va al recuadro "Código" aunque el cursor esté en otro lado
+    const ficha = document.querySelector("#fProd #eCod");
+    if (ficha) { ponerCodigo(ficha, codigo); return true; }
+    if (document.querySelector(".modal-fondo")) return false;
     const p = productoPorCodigo(codigo);
     if (p) editar(p);
     else editar(null, codigo);
+    return true;
   });
 
   let insumos = null;

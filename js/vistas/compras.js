@@ -8,9 +8,9 @@
 // corriente. Los pagos al proveedor van en la misma colección.
 import { S, UNIDADES, fmtCantidad, fechaStr, deFechaStr, productoPorCodigo, waLink, log } from "../store.js";
 import { db, inc } from "../db.js";
-import { esc, fmt, num, fecha, icon, modal, toast, confirmar } from "../util.js";
+import { esc, fmt, num, fecha, icon, modal, toast, confirmar, beep } from "../util.js";
 import { buscar } from "../buscar.js";
-import { abrirEscaner } from "../scanner.js";
+import { abrirEscaner, escucharLectorUSB } from "../scanner.js";
 
 export const PAGOS_COMPRA = { caja: "Efectivo de la caja", otro: "Transferencia u otro medio", debe: "Queda debiendo" };
 let proveedores = [];
@@ -199,9 +199,11 @@ export function nuevaCompra(provInicial = null) {
   let prov = provInicial;
   let pago = S.jornada ? "caja" : "otro";
   const lineas = [];
+  let soltarLector = null;
   const m = modal({
     titulo: "Nueva compra",
     clase: "modal-grande",
+    onClose: () => soltarLector?.(),
     cuerpo: `<form class="form" id="fCompra">
       <div class="dos-col">
         <div class="campo"><span>Proveedor</span><button type="button" class="input selector" id="ncProv"></button></div>
@@ -266,12 +268,24 @@ export function nuevaCompra(provInicial = null) {
     if (e.target.closest("#ncProv")) return elegirProveedor((p) => { prov = p; pintarProv(); ayuda(); });
     if (e.target.closest('[data-a="scan"]')) {
       const cod = await abrirEscaner({ titulo: "Escaneá el producto" });
-      if (!cod) return;
-      const p = productoPorCodigo(cod);
-      if (!p) return toast(`El código ${cod} no está asignado a ningún producto`, "error");
-      if (!p.controlStock) db.update("productos", p.id, { controlStock: true, stock: Number(p.stock) || 0 });
-      agregar({ tipo: "producto", id: p.id, nombre: p.nombre, unidad: "u", costo: p.costo || 0, stock: p.stock || 0 }, 1);
+      if (cod) agregarPorCodigo(cod);
     }
+  });
+  function agregarPorCodigo(cod) {
+    const p = productoPorCodigo(cod);
+    if (!p) { beep("error"); toast(`El código ${cod} no está asignado a ningún producto`, "error"); return; }
+    if (!p.controlStock) db.update("productos", p.id, { controlStock: true, stock: Number(p.stock) || 0 });
+    agregar({ tipo: "producto", id: p.id, nombre: p.nombre, unidad: "u", costo: p.costo || 0, stock: p.stock || 0 }, 1);
+    beep("ok");
+    $("#ncBus").value = "";
+    $("#ncSug").innerHTML = "";
+  }
+  // Lector de mano: cada lectura suma una unidad (solo si esta ventana es la de arriba)
+  soltarLector = escucharLectorUSB((codigo) => {
+    const fondos = document.querySelectorAll(".modal-fondo");
+    if (fondos[fondos.length - 1] !== m.el.parentElement) return false;
+    agregarPorCodigo(codigo);
+    return true;
   });
   m.el.addEventListener("input", (e) => {
     const c = e.target.dataset.lc, p = e.target.dataset.lp;
