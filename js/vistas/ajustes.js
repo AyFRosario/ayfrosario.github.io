@@ -10,7 +10,7 @@ import { qrcode } from "../vendor/qrcode.mjs";
 import { descargarRespaldo, diasSinRespaldo } from "../respaldo.js";
 import { firmaHTML, iconoContacto, usuarioRed } from "../firma.js";
 
-const VERSION_APP = "1.0.2";
+const VERSION_APP = "1.1.0";
 
 const MODOS = {
   ninguna: { t: "Sin impresora", d: "Este dispositivo no imprime." },
@@ -52,7 +52,8 @@ export function mount(root) {
           <div class="campo"><span>Ancho del papel</span><div class="segmentado"><button type="button" data-ancho="58" class="${imp.ancho === 58 ? "activo" : ""}">58 mm</button><button type="button" data-ancho="80" class="${imp.ancho === 80 ? "activo" : ""}">80 mm</button></div></div>
           ${imp.modo !== "sistema" ? `
             <label class="switch"><input type="checkbox" id="dCorte" ${imp.cortar ? "checked" : ""}><span>Cortar el papel al terminar</span></label>
-            <label class="switch"><input type="checkbox" id="dAcentos" ${imp.sinAcentos ? "checked" : ""}><span>Imprimir sin acentos (si salen símbolos raros)</span></label>` : ""}
+            <label class="switch"><input type="checkbox" id="dAcentos" ${imp.sinAcentos ? "checked" : ""}><span>Imprimir sin acentos (si salen símbolos raros)</span></label>
+            <label class="switch"><input type="checkbox" id="dLogo" ${imp.logo !== false ? "checked" : ""}><span>Logo en el ticket del cliente (si sale cortado o con rayas, apagalo)</span></label>` : ""}
           ${S.rol !== "cocina" ? `<label class="switch"><input type="checkbox" id="dEnviar" ${imp.alEnviar ? "checked" : ""}><span>Imprimir la comanda cuando el mozo envía un pedido desde este dispositivo</span></label>` : ""}
           <div class="fila-botones">
             ${imp.modo === "bluetooth" || imp.modo === "usb" ? `<button class="btn" data-act="conectar">${icon(imp.modo === "bluetooth" ? "bluetooth" : "print")} ${conectada ? "Cambiar impresora" : "Conectar impresora"}</button>` : ""}
@@ -323,6 +324,7 @@ export function mount(root) {
     if (t.id === "dModo") { guardarDispositivo({ impresora: { modo: t.value } }); renderDisp(); }
     else if (t.id === "dCorte") guardarDispositivo({ impresora: { cortar: t.checked } });
     else if (t.id === "dAcentos") guardarDispositivo({ impresora: { sinAcentos: t.checked } });
+    else if (t.id === "dLogo") guardarDispositivo({ impresora: { logo: t.checked } });
     else if (t.id === "dEnviar") guardarDispositivo({ impresora: { alEnviar: t.checked } });
     else if (t.id === "dInicio") { guardarDispositivo({ inicio: t.value }); toast("Listo: este dispositivo abre en " + (PANTALLAS_INICIO.find(([k]) => k === t.value)?.[1] || "")); }
     else if (t.id === "dCod") {

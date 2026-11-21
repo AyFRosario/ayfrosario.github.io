@@ -7,7 +7,7 @@ import { CONFIG } from "../config.js";
 import { S, puede, itemsDe, vigentes, agrupar, MEDIOS, nroVenta, log, onStore, consumoReceta, opsInsumos } from "../store.js";
 import { db, inc } from "../db.js";
 import { esc, fmt, num, icon, modal, toast, beep, pedirTexto } from "../util.js";
-import { imprimir, ticketVenta } from "../print.js";
+import { opcionesTicket, ticketVenta } from "../print.js";
 import { elegirCliente, opsCuenta } from "./clientes.js";
 import { TIPOS_PEDIDO, nuevaVentaRapida } from "../pedidos.js";
 
@@ -267,6 +267,6 @@ export function cobrado(v) {
   });
   const otra = m.el.querySelector('[data-a="otra"]');
   if (otra) otra.onclick = () => { m.cerrar(); nuevaVentaRapida(); };
-  m.el.querySelector('[data-a="ticket"]').onclick = () => imprimir(ticketVenta(v));
+  m.el.querySelector('[data-a="ticket"]').onclick = () => opcionesTicket(ticketVenta(v), { titulo: `Ticket ${v.nro}`, nombre: `Ticket ${v.nro} - ${v.mesaNombre}` });
   m.el.querySelector('[data-a="arca"]').onclick = () => window.open(CONFIG.arcaUrl, "_blank", "noopener");
 }

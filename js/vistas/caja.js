@@ -8,7 +8,7 @@ import { CONFIG } from "../config.js";
 import { S, puede, MEDIOS, itemsDe, totalItems, log, turnosCaja, turnoPorHora } from "../store.js";
 import { db, inc } from "../db.js";
 import { esc, fmt, num, hora, fechaHora, durTxt, icon, modal, toast, confirmar, pedirTexto } from "../util.js";
-import { imprimir, ticketCierre, ticketVenta } from "../print.js";
+import { opcionesTicket, ticketCierre, ticketVenta } from "../print.js";
 import { opsCuenta } from "./clientes.js";
 import { tocaRespaldo, diasSinRespaldo, descargarRespaldo } from "../respaldo.js";
 
@@ -202,7 +202,7 @@ export function mount(root) {
             <button class="btn" data-a="arca">${icon("externo")} ARCA</button>
             <button class="btn btn-pri" data-a="ticket">${icon("print")} Ticket</button>`,
     });
-    m.el.querySelector('[data-a="ticket"]').onclick = () => imprimir(ticketVenta(v));
+    m.el.querySelector('[data-a="ticket"]').onclick = () => opcionesTicket(ticketVenta(v), { titulo: `Ticket ${v.nro}`, nombre: `Ticket ${v.nro} - ${v.mesaNombre}` });
     m.el.querySelector('[data-a="arca"]').onclick = () => window.open(CONFIG.arcaUrl, "_blank", "noopener");
     const an = m.el.querySelector('[data-a="anular"]');
     if (an) an.onclick = async () => {
@@ -274,13 +274,15 @@ export function mount(root) {
         clase: "modal-chico",
         cuerpo: `<p>Vendido: <b>${fmt(r.total)}</b> en ${r.cant} ventas.</p><p>${Math.abs(d) < 1 ? "La caja cuadró." : d > 0 ? `Sobraron ${fmt(d)}.` : `Faltaron ${fmt(-d)}.`}</p>
           ${puede("ajustesNegocio") && tocaRespaldo() ? `<div class="banda ambar respaldo-aviso">${icon("respaldo")}<span>${diasSinRespaldo() === Infinity ? "Todavía no descargaste ningún respaldo." : `Hace ${diasSinRespaldo()} días que no descargás un respaldo.`} Es un Excel con todo: carta, ventas, cajas, clientes y compras.</span><button class="btn chico" data-a="resp">${icon("bajar")} Descargar</button></div>` : ""}`,
-        pie: `<button class="btn" data-a="imp">${icon("print")} Imprimir cierre</button><button class="btn btn-pri" data-cerrar>Listo</button>`,
+        pie: `<button class="btn" data-a="imp">${icon("print")} Ticket de cierre</button><button class="btn btn-pri" data-cerrar>Listo</button>`,
       });
-      fin.el.querySelector('[data-a="imp"]').onclick = () => imprimir(ticketCierre(jc, r));
+      fin.el.querySelector('[data-a="imp"]').onclick = () => opcionesTicket(ticketCierre(jc, r), { titulo: "Cierre de caja", nombre: nombreCierre(jc) });
       const br = fin.el.querySelector('[data-a="resp"]');
       if (br) br.onclick = async () => { if (await descargarRespaldo(br)) br.closest(".respaldo-aviso").innerHTML = `${icon("check")}<span>Respaldo descargado.</span>`; };
     };
   }
+
+  const nombreCierre = (j) => `Cierre de caja ${new Date(j.aperturaTs).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}${j.turno ? ` ${j.turno.nombre}` : ""}`;
 
   function verJornada(j) {
     const c = j.cierre || {};
@@ -296,9 +298,9 @@ export function mount(root) {
         <div class="co-linea"><span>Diferencia</span><b>${fmt(c.diferencia)}</b></div>
         ${c.nota ? `<p class="ayuda">${esc(c.nota)}</p>` : ""}
         <p class="ayuda">Abrió ${esc(j.apertura?.usuario || "")} · cerró ${esc(c.usuario || "")} a las ${hora(j.cierreTs)}</p>`,
-      pie: `<button class="btn btn-pri" data-a="imp">${icon("print")} Imprimir cierre</button>`,
+      pie: `<button class="btn btn-pri" data-a="imp">${icon("print")} Ticket de cierre</button>`,
     });
-    m.el.querySelector('[data-a="imp"]').onclick = () => imprimir(ticketCierre(j, r));
+    m.el.querySelector('[data-a="imp"]').onclick = () => opcionesTicket(ticketCierre(j, r), { titulo: "Cierre de caja", nombre: nombreCierre(j) });
   }
 
   root.addEventListener("submit", (e) => {

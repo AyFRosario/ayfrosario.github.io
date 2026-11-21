@@ -1,4 +1,4 @@
-# A&F — versión 1.0.2
+# A&F — versión 1.1
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -63,6 +63,14 @@ Cada dispositivo elige su impresora en **Ajustes → Este dispositivo**.
 - **Cocina en PC con impresión automática:** creá un acceso directo de Chrome con `--kiosk-printing` al final del destino. Así imprime en la impresora predeterminada sin mostrar el diálogo:
   `"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing https://tuusuario.github.io/AF/`
 - En la tablet de cocina, activá **Imprimir solo** en la pantalla de cocina. Con Bluetooth, la primera vez de cada sesión hay que tocar "Conectar impresora".
+- **Ticket del cliente (v1.1):**
+  - El botón **Ticket** (al cobrar, en el detalle de una venta y en el cierre de caja) abre una vista previa con dos opciones:
+    - **Imprimir:** sale por la impresora del dispositivo. Si no hay ninguna configurada, se abre el diálogo de impresión del navegador.
+    - **Guardar en el dispositivo:** baja un PDF del ancho del ticket (58 u 80 mm), por ejemplo "Ticket C11-0001 - Mesa 3.pdf" o "Cierre de caja 21-11-2026.pdf". Se puede reimprimir o mandar después.
+  - **Arriba:** el **logo**, el lema (**Comé como en casa**) y la dirección y el WhatsApp del local. El lema, la dirección y el WhatsApp salen de Ajustes → Negocio.
+  - **Abajo:** el pie del ticket (¡Gracias por venir!).
+  - **Dónde va el logo:** en el ticket de la venta y en la precuenta. La comanda de cocina y el cierre van sin logo, para que salgan rápido.
+  - **En la térmica (Bluetooth, USB o RawBT)** el logo se manda como imagen en blanco y negro. Si alguna impresora lo imprime cortado o con rayas, se apaga en **Ajustes → Este dispositivo → Logo en el ticket del cliente**, y sale el nombre en letras grandes. La **impresión de prueba** también lleva el logo, para probarlo.
 - **Antes de comprar la impresora**, conviene que sea térmica ESC/POS con Bluetooth BLE o USB. Las Xprinter, Gprinter y las "58mm Bluetooth" genéricas suelen funcionar.
 
 ## 3 bis. Cargar la carta desde Excel

@@ -12,7 +12,7 @@
 // Los tickets se arman una sola vez como una lista de renglones y
 // se traducen a HTML (modo sistema) o a comandos ESC/POS (resto).
 import { S, dispositivo, guardarDispositivo, MEDIOS } from "./store.js";
-import { esc, fmt, hora, fechaHora, toast, sleep, normalizar } from "./util.js";
+import { esc, fmt, hora, fechaHora, toast, sleep, normalizar, modal, icon } from "./util.js";
 
 // ── Renglones ──
 const T = (txt, o = {}) => ({ t: "txt", txt: String(txt ?? ""), ...o });   // o: { al:'c'|'d', neg, grande }
@@ -23,6 +23,21 @@ const E = (n = 1) => ({ t: "esp", n });
 function encabezado(titulo) {
   const c = S.config || {};
   return [T(c.nombre || "A&F", { al: "c", neg: true, grande: true }), c.lema ? T(c.lema, { al: "c" }) : null, titulo ? T(titulo, { al: "c", neg: true }) : null, L()].filter(Boolean);
+}
+// Tickets que se lleva el cliente: logo, lema y datos del local
+// (la comanda de cocina y el cierre de caja van sin logo: salen más rápido)
+const LOGO = { t: "logo" };
+function encabezadoCliente(titulo) {
+  const c = S.config || {};
+  const contacto = [c.direccion, c.whatsapp ? `WhatsApp ${c.whatsapp}` : ""].filter(Boolean);
+  return [
+    LOGO,
+    c.lema ? T(c.lema, { al: "c", lema: true }) : null,
+    ...contacto.map((x) => T(x, { al: "c" })),
+    titulo ? E(1) : null,
+    titulo ? T(titulo, { al: "c", neg: true }) : null,
+    L(),
+  ].filter(Boolean);
 }
 
 // Pedidos sin mesa: tipo y hora, para que se vean bien en el papel
@@ -80,7 +95,7 @@ function lineasCliente(tipo, cli = {}, hh = "") {
 
 export function ticketPrecuenta({ mesa, mozo, items, total, pedido = null }) {
   return [
-    ...encabezado(pedido?.tipo === "delivery" ? "PEDIDO" : "PRECUENTA"),
+    ...encabezadoCliente(pedido?.tipo === "delivery" ? "PEDIDO" : "PRECUENTA"),
     ...lineasCliente(pedido?.tipo, pedido?.cliente, pedido?.hora),
     F(mesa, hora(Date.now())), T(`Atendió: ${mozo || ""}`), L(),
     ...lineasItems(items), L(),
@@ -94,7 +109,7 @@ export function ticketPrecuenta({ mesa, mozo, items, total, pedido = null }) {
 }
 export function ticketVenta(v) {
   const r = [
-    ...encabezado(""),
+    ...encabezadoCliente(""),
     ...lineasCliente(v.tipo, v.cliente, v.hora),
     F(`Nº ${v.nro}`, fechaHora(v.ts)), F(v.mesaNombre || "", `Atendió: ${v.mozo || ""}`), L(),
     ...lineasItems(v.items), L(),
@@ -106,8 +121,9 @@ export function ticketVenta(v) {
   r.push(L());
   for (const p of v.pagos || []) r.push(F(p.medio === "cuenta" && p.clienteNombre ? `Cta. cte. ${p.clienteNombre}` : MEDIOS[p.medio] || p.medio, fmt(p.monto)));
   if (v.vuelto) r.push(F("Su vuelto", fmt(v.vuelto)));
-  r.push(E(1), T("No válido como factura", { al: "c" }));
-  if (S.config.pieTicket) r.push(T(S.config.pieTicket, { al: "c" }));
+  r.push(E(1));
+  if (S.config.pieTicket) r.push(T(S.config.pieTicket, { al: "c", neg: true }));
+  r.push(T("No válido como factura", { al: "c" }));
   r.push(E(3));
   return r;
 }
@@ -142,13 +158,14 @@ export function ticketCierre(j, res) {
 }
 export function ticketPrueba() {
   const d = dispositivo();
-  return [...encabezado("PRUEBA DE IMPRESIÓN"), T(`Dispositivo ${d.codigo} · ${d.impresora.ancho} mm`), T("Ñandú, acción, café, pingüino"), F("Izquierda", "Derecha"), T("Texto grande", { grande: true }), L(), E(3)];
+  return [...encabezadoCliente("PRUEBA DE IMPRESIÓN"), T(`Dispositivo ${d.codigo} · ${d.impresora.ancho} mm`), T("Ñandú, acción, café, pingüino"), F("Izquierda", "Derecha"), T("Texto grande", { grande: true }), L(), E(3)];
 }
 
 // ── Salida HTML (modo sistema) ──
 function html(lineas, ancho) {
-  const g = (l, s) => `${l.neg ? "n " : ""}${l.grande ? "g " : ""}${l.al === "c" ? "c " : l.al === "d" ? "d " : ""}${s || ""}`;
+  const g = (l, s) => `${l.lema ? "l " : ""}${l.neg ? "n " : ""}${l.grande ? "g " : ""}${l.al === "c" ? "c " : l.al === "d" ? "d " : ""}${s || ""}`;
   return lineas.map((l) => {
+    if (l.t === "logo") return `<img class="logo" src="img/logo.svg" alt="${esc(S.config?.nombre || "A&F")}">`;
     if (l.t === "linea") return "<hr>";
     if (l.t === "esp") return `<div style="height:${l.n * 1.2}em"></div>`;
     if (l.t === "fila") return `<div class="f ${g(l)}"><span>${esc(l.izq)}</span><span>${esc(l.der)}</span></div>`;
@@ -168,7 +185,9 @@ function imprimirSistema(lineas, ancho) {
   zona.innerHTML = html(lineas, ancho);
   const limpiar = () => { zona.innerHTML = ""; window.removeEventListener("afterprint", limpiar); };
   window.addEventListener("afterprint", limpiar);
-  setTimeout(() => window.print(), 30);
+  // Esperar el logo antes de abrir el diálogo (si tarda, se imprime igual)
+  const imgs = [...zona.querySelectorAll("img")].filter((i) => !i.complete);
+  Promise.race([Promise.all(imgs.map((i) => new Promise((ok) => { i.onload = i.onerror = ok; }))), sleep(1500)]).then(() => window.print());
   return true;
 }
 
@@ -220,11 +239,16 @@ function cortarEn(texto, ancho) {
   }
   return res;
 }
-export function escpos(lineas, { ancho = 80, cortar = true, sinAcentos = false } = {}) {
+export function escpos(lineas, { ancho = 80, cortar = true, sinAcentos = false, logo = null } = {}) {
   const cols = ancho === 58 ? 32 : 48;
   const o = [0x1b, 0x40, 0x1b, 0x74, 2]; // inicializar + página de códigos PC850 (ñ y acentos)
   const txt = (s) => o.push(...bytesTexto(s, sinAcentos), 0x0a);
   for (const l of lineas) {
+    if (l.t === "logo") {
+      if (logo) { o.push(0x1b, 0x61, 1); for (const b of logo) o.push(b); o.push(0x0a); }
+      else { o.push(0x1b, 0x61, 1, 0x1b, 0x45, 1, 0x1d, 0x21, 0x11); txt(S.config?.nombre || "A&F"); o.push(0x1d, 0x21, 0, 0x1b, 0x45, 0); }
+      continue;
+    }
     if (l.t === "esp") { o.push(0x1b, 0x64, l.n); continue; }
     if (l.t === "linea") { o.push(0x1b, 0x61, 0); txt("-".repeat(cols)); continue; }
     const w = l.grande ? Math.floor(cols / 2) : cols;
@@ -362,14 +386,207 @@ export async function reconectarImpresora() {
   } catch (e) { console.warn("No se pudo reconectar la impresora", e); }
 }
 
+// ── Logo ──
+let logoP = null;
+function cargarLogo() {
+  if (!logoP) {
+    logoP = new Promise((ok, mal) => {
+      const img = new Image();
+      img.onload = () => ok(img);
+      img.onerror = mal;
+      img.src = "img/logo.svg";
+    });
+    logoP.catch(() => { logoP = null; });
+  }
+  return logoP;
+}
+// Logo en blanco y negro para la térmica (comando de imagen GS v 0)
+async function logoTermica(cols) {
+  const img = await cargarLogo();
+  const puntos = cols === 32 ? 384 : 576;                  // ancho imprimible de 58 y 80 mm
+  const w = Math.round((puntos * 0.56) / 8) * 8;
+  const h = Math.round((w * img.height) / img.width);
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  const px = ctx.getImageData(0, 0, w, h).data;
+  const bpl = w / 8;
+  const datos = new Uint8Array(bpl * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11 < 170) datos[y * bpl + (x >> 3)] |= 0x80 >> (x & 7);
+  }
+  return [0x1d, 0x76, 0x30, 0, bpl & 0xff, bpl >> 8, h & 0xff, h >> 8, ...datos];
+}
+
+// ── Ticket como imagen y PDF (vista previa y "Guardar en el dispositivo") ──
+// Se dibuja con letra de ancho fijo y las mismas columnas que la térmica,
+// así el PDF queda igual al papel.
+const MONO = '"DM Mono", ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace';
+async function dibujarTicket(lineas, ancho = 80) {
+  const cols = ancho === 58 ? 32 : 48;
+  const fs = 26, alto = Math.round(fs * 1.38), pad = 28;
+  try { await Promise.race([document.fonts.load(`${fs}px "DM Mono"`), sleep(1200)]); } catch {}
+  const cv = document.createElement("canvas");
+  const ctx = cv.getContext("2d");
+  ctx.font = `${fs}px ${MONO}`;
+  const cw = ctx.measureText("0").width;
+  // Renglones ya cortados como en la impresora
+  const filas = [];
+  const logo = lineas.some((l) => l.t === "logo") ? await cargarLogo().catch(() => null) : null;
+  const hasta = lineas.length - [...lineas].reverse().findIndex((l) => l.t !== "esp"); // sin el avance de papel del final
+  for (const l of lineas.slice(0, hasta)) {
+    if (l.t === "logo") {
+      if (logo) filas.push({ logo });
+      else filas.push({ txt: S.config?.nombre || "A&F", al: "c", grande: true, neg: true });
+      continue;
+    }
+    if (l.t === "esp") { filas.push({ esp: l.n }); continue; }
+    if (l.t === "linea") { filas.push({ linea: true }); continue; }
+    const w = l.grande ? Math.floor(cols / 2) : cols;
+    const base = { neg: l.neg, grande: l.grande, al: l.al, lema: l.lema };
+    if (l.t === "fila") {
+      const der = l.der.slice(0, w);
+      const izqs = cortarEn(l.izq, Math.max(1, w - der.length - 1));
+      izqs.forEach((iz, k) => filas.push({ ...base, al: "", txt: k < izqs.length - 1 ? iz : iz + " ".repeat(Math.max(1, w - iz.length - der.length)) + der }));
+    } else cortarEn(l.txt, w).forEach((t) => filas.push({ ...base, txt: t }));
+  }
+  const anchoLogo = Math.round(cols * cw * 0.56);
+  const altoFila = (f) => (f.logo ? Math.round((anchoLogo * f.logo.height) / f.logo.width) + 10 : f.esp ? f.esp * alto * 0.6 : f.linea ? alto * 0.7 : f.grande ? alto * 2 : f.lema ? alto * 1.25 : alto);
+  cv.width = Math.ceil(cols * cw + pad * 2);
+  cv.height = Math.ceil(filas.reduce((h, f) => h + altoFila(f), 0) + pad * 2);
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = "#000";
+  ctx.strokeStyle = "#000";
+  ctx.textBaseline = "middle";
+  let y = pad;
+  for (const f of filas) {
+    const h = altoFila(f);
+    if (f.logo) {
+      ctx.drawImage(f.logo, (cv.width - anchoLogo) / 2, y, anchoLogo, h - 10);
+    } else if (f.lema) {
+      ctx.font = `italic 600 ${Math.round(fs * 1.15)}px Georgia, "Times New Roman", serif`;
+      const tw = ctx.measureText(f.txt).width;
+      ctx.fillText(f.txt, (cv.width - tw) / 2, y + h / 2);
+    } else if (f.linea) {
+      ctx.setLineDash([8, 6]); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(pad, y + h / 2); ctx.lineTo(cv.width - pad, y + h / 2); ctx.stroke();
+    } else if (!f.esp) {
+      const tam = f.grande ? fs * 2 : fs;
+      ctx.font = `${f.neg || f.grande ? "600 " : ""}${tam}px ${MONO}`;
+      const tw = ctx.measureText(f.txt).width;
+      const x = f.al === "c" ? (cv.width - tw) / 2 : f.al === "d" ? cv.width - pad - tw : pad;
+      ctx.fillText(f.txt, x, y + h / 2);
+    }
+    y += h;
+  }
+  return cv;
+}
+
+// PDF de una página con la imagen del ticket (sin librerías: un JPEG dentro de un PDF mínimo)
+function pdfDeJpeg(jpeg, wPx, hPx, anchoMm) {
+  const W = (anchoMm * 72) / 25.4, H = (W * hPx) / wPx;
+  const n2 = (x) => x.toFixed(2);
+  const enc = new TextEncoder();
+  const partes = [];
+  const offsets = [];
+  let largo = 0;
+  const poner = (x) => { const b = typeof x === "string" ? enc.encode(x) : x; partes.push(b); largo += b.length; };
+  const objeto = (n, cuerpo, stream) => {
+    offsets[n] = largo;
+    poner(`${n} 0 obj\n${cuerpo}\n`);
+    if (stream) { poner("stream\n"); poner(stream); poner("\nendstream\n"); }
+    poner("endobj\n");
+  };
+  const contenido = enc.encode(`q ${n2(W)} 0 0 ${n2(H)} 0 0 cm /Im0 Do Q`);
+  poner("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  objeto(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  objeto(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  objeto(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n2(W)} ${n2(H)}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
+  objeto(4, `<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>`, jpeg);
+  objeto(5, `<< /Length ${contenido.length} >>`, contenido);
+  const xref = largo;
+  poner(`xref\n0 6\n0000000000 65535 f \n${[1, 2, 3, 4, 5].map((k) => `${String(offsets[k]).padStart(10, "0")} 00000 n \n`).join("")}`);
+  poner(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(partes, { type: "application/pdf" });
+}
+
+const nombreArchivo = (s) => String(s || "Ticket").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 80);
+
+/** Guarda el ticket como PDF en el dispositivo (Descargas). */
+export async function guardarTicket(lineas, nombre = "Ticket") {
+  const ancho = dispositivo().impresora.ancho === 58 ? 58 : 80;
+  const cv = await dibujarTicket(lineas, ancho);
+  const jpeg = new Uint8Array(await (await new Promise((ok) => cv.toBlob(ok, "image/jpeg", 0.92))).arrayBuffer());
+  const blob = pdfDeJpeg(jpeg, cv.width, cv.height, ancho);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombreArchivo(nombre) + ".pdf";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(`Ticket guardado: ${a.download}`);
+  return true;
+}
+
+const MODOS_IMP = { sistema: "Diálogo de impresión", bluetooth: "Impresora Bluetooth", usb: "Impresora USB", rawbt: "RawBT" };
+/**
+ * Ventana del ticket: vista previa + Imprimir + Guardar en el dispositivo.
+ * Sin impresora configurada, "Imprimir" abre el diálogo de impresión del navegador.
+ */
+export function opcionesTicket(lineas, { titulo = "Ticket", nombre = "Ticket" } = {}) {
+  const imp = dispositivo().impresora;
+  const conImpresora = imp.modo && imp.modo !== "ninguna";
+  const m = modal({
+    titulo,
+    clase: "modal-chico modal-ticket",
+    cuerpo: `<div class="tk-previa"><p class="ayuda">Preparando…</p></div>`,
+    pie: `<button class="btn" data-tk="guardar">${icon("bajar")} Guardar en el dispositivo</button>
+          <button class="btn btn-pri" data-tk="imprimir">${icon("print")} Imprimir</button>
+          <p class="ayuda tk-modo">${conImpresora ? `${MODOS_IMP[imp.modo] || imp.modo} · ${imp.ancho} mm` : "Sin impresora configurada: se abre el diálogo de impresión"}</p>`,
+  });
+  dibujarTicket(lineas, imp.ancho === 58 ? 58 : 80).then((cv) => {
+    const img = new Image();
+    img.alt = "Vista previa del ticket";
+    img.src = cv.toDataURL("image/png");
+    const prev = m.el.querySelector(".tk-previa");
+    prev.innerHTML = "";
+    prev.appendChild(img);
+  }).catch(() => { m.el.querySelector(".tk-previa").innerHTML = ""; });
+  m.el.querySelector('[data-tk="imprimir"]').onclick = async () => {
+    if (!conImpresora) { imprimirSistema(lineas, imp.ancho === 58 ? 58 : 80); return; }
+    if (await imprimir(lineas)) toast("Ticket enviado a la impresora");
+  };
+  m.el.querySelector('[data-tk="guardar"]').onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try { await guardarTicket(lineas, nombre); }
+    catch (err) { console.error(err); toast("No se pudo guardar el ticket", "error"); }
+    b.disabled = false;
+  };
+  return m;
+}
+
+export const __logoTermica = logoTermica; // para las pruebas
+// El logo en papel se puede apagar por dispositivo (Ajustes → Este dispositivo)
+async function conLogo(lineas, imp) {
+  if (imp.logo === false || !lineas.some((l) => l.t === "logo")) return imp;
+  try { return { ...imp, logo: await logoTermica(imp.ancho === 58 ? 32 : 48) }; } catch { return imp; }
+}
+
 export async function imprimir(lineas, { silencioso = false } = {}) {
   const imp = dispositivo().impresora;
   try {
     switch (imp.modo) {
       case "sistema": return imprimirSistema(lineas, imp.ancho);
-      case "bluetooth": await enviarBT(escpos(lineas, imp)); return true;
-      case "usb": await enviarUSB(escpos(lineas, imp)); return true;
-      case "rawbt": enviarRawBT(escpos(lineas, imp)); return true;
+      case "bluetooth": await enviarBT(escpos(lineas, await conLogo(lineas, imp))); return true;
+      case "usb": await enviarUSB(escpos(lineas, await conLogo(lineas, imp))); return true;
+      case "rawbt": enviarRawBT(escpos(lineas, await conLogo(lineas, imp))); return true;
       default:
         if (!silencioso) toast("Este dispositivo no tiene impresora (Ajustes → Este dispositivo)");
         return false;
