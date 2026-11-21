@@ -9,13 +9,14 @@ import { $, esc, icon, toast, modal, confirmar, iniciales, fmt, normalizar } fro
 import { reconectarImpresora } from "./print.js";
 import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
 
-const VERSION = "0.9.1";
+const VERSION = "1.0.0";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
 import * as vCaja from "./vistas/caja.js";
 import * as vProductos from "./vistas/productos.js";
 import * as vReportes from "./vistas/reportes.js";
+import * as vResultado from "./vistas/resultado.js";
 import * as vUsuarios from "./vistas/usuarios.js";
 import * as vAjustes from "./vistas/ajustes.js";
 import * as vReservas from "./vistas/reservas.js";
@@ -34,6 +35,7 @@ const RUTAS = {
   productos: { mod: vProductos, perm: "productos", titulo: "Productos", icono: "productos", menu: true, grupo: "Administración" },
   compras: { mod: vCompras, perm: "compras", titulo: "Compras", icono: "camion", menu: true, grupo: "Administración" },
   reportes: { mod: vReportes, perm: "reportes", titulo: "Reportes", icono: "grafico", menu: true, grupo: "Administración" },
+  resultado: { mod: vResultado, perm: "resultado", titulo: "Gastos y resultado", icono: "dinero", menu: true, grupo: "Administración" },
   clientes: { mod: vClientes, perm: "clientes", titulo: "Clientes", icono: "libreta", menu: true, grupo: "Administración" },
   recordatorios: { mod: vRecordatorios, perm: "recordatorios", titulo: "Vencimientos", icono: "alarma", menu: true, grupo: "Administración" },
   usuarios: { mod: vUsuarios, perm: "usuarios", titulo: "Usuarios", icono: "usuarios", menu: true, grupo: "Configuración" },

@@ -1,4 +1,4 @@
-# A&F — versión 0.9.1
+# A&F — versión 1.0
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -10,8 +10,9 @@ PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto d
 | **Comanda** | Mozo | Carta por categorías con buscador tolerante: "milaneza" encuentra "milanesa". Escáner de códigos con la cámara o con un lector USB. Notas por ítem y **opciones** (guarnición, punto, agregados con precio). Enviar a cocina o barra. Precuenta, pasar a otra mesa, cerrar sin cobrar. |
 | **Cocina y barra** | Cocina | Pedidos en columnas: Pendiente → En preparación → Listo. Suena un aviso al entrar un pedido y se puede imprimir solo. La pantalla no se apaga. |
 | **Cobro** | Encargado (y mozos si se habilita) | Descuento en % o $, **propina** aparte, pago dividido entre varios medios, vuelto, ticket no fiscal y botón **Facturar en ARCA**. |
-| **Caja** | Encargado, dueño | La jornada no se corta a medianoche. Muestra totales por medio de pago, y permite cargar gastos, retiros e ingresos. El cierre hace el arqueo (contado contra esperado) y la anulación de ventas devuelve el stock. |
+| **Caja** | Encargado, dueño | La jornada no se corta a medianoche. Muestra totales por medio de pago, y permite cargar gastos, retiros e ingresos. El cierre hace el arqueo (contado contra esperado) y la anulación de ventas devuelve el stock. Uno o varios **turnos de caja** por día, según el bar. |
 | **Productos** | Encargado, dueño | Alta y edición con código de barras. Control de stock con aviso de stock bajo. **Ingreso de mercadería escaneando con el celular**. Precios en tanda. |
+| **Gastos y resultado** | Dueño | Gastos fijos del mes (alquiler, sueldos, servicios…) y el **resultado**: lo vendido menos compras y gastos. |
 | **Reservas** | Mozo, encargado, dueño | Reservas por día: confirmar por WhatsApp, sentar en una mesa, "no vino". Las de hoy aparecen arriba del salón. |
 | **Compras** | Encargado, dueño | Compras que suman stock (insumos y bebidas) y actualizan el costo. Proveedores con lo que se les debe. |
 | **Clientes** | Encargado, dueño | Cuenta corriente: cobrar "a cuenta", registrar pagos y mandar el saldo por WhatsApp. |
@@ -282,6 +283,30 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
 - **Lo que sí queda a la vista:** lo que hace con su usuario queda firmado con su nombre como cualquier otro (quién cobró, quién abrió la caja, el registro del respaldo). Así siempre se sabe quién hizo cada cambio.
 - **En el demo:** se entra con `?demo&admin`.
 
+## 3 duodecies. Turnos de caja, gastos fijos y resultado del mes (v1.0)
+
+### Turnos de caja
+- **Se configuran en Ajustes → Turnos de caja:** uno, dos, tres o cuatro por día, cada uno con nombre y horario. Al elegir la cantidad se proponen nombres y horarios típicos (por ejemplo, "Mañana/tarde" de 08:00 a 16:00 y "Tarde/noche" de 16:00 a 02:00), que se pueden cambiar. Un turno puede pasar la medianoche.
+- **Con uno solo** (como venía hasta ahora) no se elige nada al abrir la caja.
+- **Al abrir la caja:** se elige el turno. Viene marcado el que corresponde a la hora. Si el turno anterior cerró hace poco, se ofrece usar como fondo el efectivo que se contó.
+- **Dónde se ve el turno:** arriba de la caja abierta, en la lista de cajas anteriores, en el cierre y en el ticket de cierre.
+- **Cada venta guarda su turno.** Las ventas anteriores a este cambio se ubican por la hora.
+- **Reportes:** la sección **Por turno de caja** muestra cuánto se vendió en cada turno, cuántas ventas hubo y el ticket promedio. "Última jornada" pasa a llamarse **Último turno** y se compara con el mismo turno de la semana pasada. El Excel y el respaldo traen el turno de cada venta y de cada caja.
+
+### Gastos y resultado (solo dueño y administrador)
+- **Dónde:** **Gastos y resultado**, en Administración. Se recorre mes por mes con las flechas.
+- **Gastos fijos:** son los que no pasan por la caja: alquiler, sueldos y cargas sociales, servicios, impuestos y tasas, mantenimiento, seguros, abonos. Cada uno tiene categoría, detalle y monto. Se pueden crear categorías nuevas.
+- **"Se repite todos los meses":** al empezar un mes aparece el aviso "Octubre tiene 6 gastos fijos que se repiten" con el botón **Copiarlos**. Después se corrigen los montos que hayan cambiado.
+- **Resultado:** lo vendido, menos las compras de mercadería, menos los gastos pagados de la caja, menos los gastos fijos. Se ven el margen y el resultado del mes anterior.
+- **Para que no se cuente nada dos veces:**
+  - Las propinas no son venta.
+  - Las compras se cuentan en el mes en que se cargan, aunque se paguen después.
+  - Si una compra o un pago a proveedor salió de la caja, ese gasto de caja no se vuelve a sumar.
+  - Los retiros del dueño no son gastos.
+- **"¿En qué se va la plata?"** muestra las barras por categoría, con la mercadería y los gastos de caja incluidos.
+- **Quién lo ve:** solo el dueño y el administrador, porque incluye sueldos. El encargado no lo ve, y el respaldo que él descarga no trae la hoja de gastos fijos.
+- **Reglas de Firebase:** esta versión agrega la colección `gastos`. Hay que volver a pegar `firestore.rules` y publicarlas.
+
 ## 4. Escáner de códigos
 
 - **Android (Chrome):** usa el lector que trae el navegador. Es rápido y funciona sin conexión.
@@ -323,11 +348,12 @@ js/respaldo.js     ← respaldo completo en Excel
 js/firma.js        ← firma del desarrollador y contactos (WhatsApp, redes, Maps)
 js/pedidos.js      ← pedidos para llevar, delivery y venta rápida
 js/opciones.js     ← grupos de opciones (guarnición, punto, agregados)
+js/vistas/resultado.js ← gastos fijos y resultado del mes
 js/vistas/         ← salon, mesa, cobro, cocina, caja, productos, insumos, reportes,
                      reservas, compras, clientes, recordatorios, usuarios, ajustes
 ```
 
-**Colecciones** (dentro de `negocios/{id}/`): `config`, `usuarios`, `mesas`, `productos`, `insumos`, `comandas`, `items`, `ventas`, `jornadas`, `movCaja`, `reservas`, `proveedores`, `compras`, `clientes`, `movClientes`, `recordatorios`, `logs`, `publico`.
+**Colecciones** (dentro de `negocios/{id}/`): `config`, `usuarios`, `mesas`, `productos`, `insumos`, `comandas`, `items`, `ventas`, `jornadas`, `movCaja`, `gastos`, `reservas`, `proveedores`, `compras`, `clientes`, `movClientes`, `recordatorios`, `logs`, `publico`.
 
 ## 7. De dónde salió cada cosa
 
@@ -350,7 +376,6 @@ Problemas de los proyectos anteriores que esta versión no hereda:
 
 ## 8. Lo que sigue
 
-- **Versión 1.0:** turnos (mañana, tarde, noche) en Reportes, gastos fijos por categoría y resultado del mes
 - "Llamar al mozo" desde la carta QR
 - Fotos de los productos en la carta QR
 - Promos tipo "2 pintas + papas" o 2x1 en tragos

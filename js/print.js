@@ -114,6 +114,7 @@ export function ticketVenta(v) {
 export function ticketCierre(j, res) {
   const r = [
     ...encabezado("CIERRE DE CAJA"),
+    ...(j.turno ? [T(`Turno: ${j.turno.nombre}`, { neg: true, al: "c" })] : []),
     F("Apertura", fechaHora(j.aperturaTs)), F("Cierre", fechaHora(j.cierreTs || Date.now())),
     F("Abrió", j.apertura?.usuario || ""), F("Cerró", j.cierre?.usuario || ""), L(),
     T("COBRADO POR MEDIO DE PAGO", { neg: true }),

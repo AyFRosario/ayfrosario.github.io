@@ -7,12 +7,12 @@
 //
 // El "día comercial" empieza a las 6 de la mañana: lo que se vende
 // a las 2 de la madrugada cuenta para la noche anterior.
-import { S, MEDIOS } from "../store.js";
+import { S, MEDIOS, turnosCaja, turnoDeVenta } from "../store.js";
 import { db } from "../db.js";
 import { esc, fmt, fmtNum, icon, toast } from "../util.js";
 import { cargarXLSX } from "../importar.js";
 
-const CORTE = 6; // hora en que empieza el día comercial
+export const CORTE = 6; // hora en que empieza el día comercial
 const DIA = 86400000;
 const PERIODOS = { jornada: "Última jornada", semana: "Últimos 7 días", mes: "Este mes", mesAnt: "Mes anterior", rango: "Elegir fechas" };
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
@@ -36,7 +36,7 @@ async function rangos(tipo, desdeTxt, hastaTxt) {
     if (!j) return null;
     const hasta = j.cierreTs || ahora;
     const largo = hasta - j.aperturaTs;
-    return { desde: j.aperturaTs, hasta, prev: [j.aperturaTs - 7 * DIA, j.aperturaTs - 7 * DIA + largo], vs: "misma noche de la semana pasada", jornadaId: j.id };
+    return { desde: j.aperturaTs, hasta, prev: [j.aperturaTs - 7 * DIA, j.aperturaTs - 7 * DIA + largo], vs: j.turno ? `el mismo turno (${j.turno.nombre}) de la semana pasada` : "misma noche de la semana pasada", jornadaId: j.id };
   }
   if (tipo === "semana") {
     const desde = hoy - 6 * DIA;
@@ -69,13 +69,15 @@ function analizar(ventas) {
     total: 0, cant: ok.length, comensales: 0, descuentos: 0, propinas: 0,
     anuladas: ventas.length - ok.length, montoAnulado: 0,
     porMedio: {}, porDia: new Map(), porHora: new Map(), porMozo: new Map(), productos: new Map(), porCat: new Map(),
-    porTipo: new Map(), totalMesas: 0,
+    porTipo: new Map(), totalMesas: 0, porTurno: new Map(),
   };
   for (const v of ventas) if (v.estado === "anulada") r.montoAnulado += v.total || 0;
   const catDe = new Map(S.productos.map((p) => [p.id, p.categoria || "Otros"]));
   for (const v of ok) {
     r.total += v.total || 0;
     const tipo = TIPOS_VENTA[v.tipo] ? v.tipo : "mesa";
+    const tn = turnoDeVenta(v);
+    if (tn) { const x = r.porTurno.get(tn) || { total: 0, cant: 0 }; x.total += v.total || 0; x.cant++; r.porTurno.set(tn, x); }
     const pt = r.porTipo.get(tipo) || { total: 0, cant: 0 };
     pt.total += v.total || 0; pt.cant++;
     r.porTipo.set(tipo, pt);
@@ -125,7 +127,7 @@ function columnas(datos, { alto = 150, etiquetaCada = 1 } = {}) {
       <small>${i % etiquetaCada === 0 ? esc(d.et) : ""}</small></div>`).join("")}
   </div>`;
 }
-function barras(datos) {
+export function barras(datos) {
   const max = Math.max(1, ...datos.map((d) => d.v));
   return `<div class="barras">${datos.map((d) => `
     <div class="barra-fila" data-tip="${esc(d.tip || "")}"><span class="bf-et">${esc(d.et)}</span>
@@ -148,7 +150,7 @@ export function mount(root) {
   root.innerHTML = `
     <div class="reportes">
       <div class="rep-filtros">
-        <div class="chips desliza" id="rPer">${Object.entries(PERIODOS).map(([k, v]) => `<button class="chip" data-per="${k}">${v}</button>`).join("")}</div>
+        <div class="chips desliza" id="rPer">${Object.entries(PERIODOS).map(([k, v]) => `<button class="chip" data-per="${k}">${k === "jornada" && turnosCaja().length > 1 ? "Último turno" : v}</button>`).join("")}</div>
         <div class="rep-rango" id="rRango" hidden>
           <input class="input chico" type="date" id="rDesde" value="${desdeTxt}"> a <input class="input chico" type="date" id="rHasta" value="${hastaTxt}">
         </div>
@@ -209,6 +211,10 @@ export function mount(root) {
     });
     const medios = Object.entries(r.porMedio).sort((a, b) => b[1] - a[1]).map(([m, v]) => ({ et: MEDIOS[m] || m, v, val: fmt(v), tip: `${MEDIOS[m] || m}: ${r.total ? Math.round((v / r.total) * 100) : 0}% de lo vendido` }));
     const tipos = [...r.porTipo.entries()].sort((a, b) => b[1].total - a[1].total).map(([k, x]) => ({ et: TIPOS_VENTA[k], v: x.total, val: fmt(x.total), tip: `${TIPOS_VENTA[k]}: ${fmtNum(x.cant)} venta${x.cant === 1 ? "" : "s"} · ${r.total ? Math.round((x.total / r.total) * 100) : 0}% de lo vendido` }));
+    // Turnos en el orden de Ajustes; los nombres viejos (si se renombró un turno) van al final
+    const ordenT = turnosCaja().map((t) => t.nombre);
+    const turnos = [...r.porTurno.entries()].sort((a, b) => ((ordenT.indexOf(a[0]) + 1) || 99) - ((ordenT.indexOf(b[0]) + 1) || 99))
+      .map(([k, x]) => ({ et: k, v: x.total, val: fmt(x.total), tip: `${k}: ${fmtNum(x.cant)} venta${x.cant === 1 ? "" : "s"} · ticket promedio ${fmt(x.total / x.cant)} · ${r.total ? Math.round((x.total / r.total) * 100) : 0}% de lo vendido` }));
     const cats = [...r.porCat.entries()].sort((a, b) => b[1] - a[1]).map(([c, v]) => ({ et: c, v, val: fmt(v), tip: `${c}: ${fmt(v)}` }));
     const prods = [...r.productos.values()].sort((a, b) => b.cant - a.cant || b.importe - a.importe);
     const maxCant = Math.max(1, ...prods.map((x) => x.cant));
@@ -226,6 +232,7 @@ export function mount(root) {
       <div class="rep-grid">
         ${datosDias.length > 1 ? `<section class="tarjeta"><h3>Ventas por día</h3>${columnas(datosDias, { etiquetaCada: datosDias.length > 16 ? 3 : 1 })}</section>` : ""}
         ${datosHoras.length ? `<section class="tarjeta"><h3>¿A qué hora llegan?</h3><p class="ayuda">Mesas y pedidos según la hora en que se abrieron.</p>${columnas(datosHoras, { alto: 120 })}</section>` : ""}
+        ${turnos.length > 1 ? `<section class="tarjeta"><h3>Por turno de caja</h3>${barras(turnos)}<p class="ayuda">${turnos.map((x) => `${esc(x.et)}: ${fmtNum(r.porTurno.get(x.et).cant)} venta${r.porTurno.get(x.et).cant === 1 ? "" : "s"}, ticket promedio ${fmt(r.porTurno.get(x.et).total / r.porTurno.get(x.et).cant)}`).join(" · ")}</p></section>` : ""}
         ${tipos.length > 1 ? `<section class="tarjeta"><h3>Mesas, para llevar y delivery</h3>${barras(tipos)}</section>` : ""}
         <section class="tarjeta"><h3>Medios de pago</h3>${barras(medios)}</section>
         <section class="tarjeta"><h3>Por categoría</h3>${barras(cats)}</section>
@@ -263,12 +270,13 @@ export function mount(root) {
       ["Comensales", r.comensales], ["Gasto por persona", Math.round(r.porPersona)], ["Descuentos", r.descuentos], ["Propinas (aparte)", r.propinas], ["Ventas anuladas", r.anuladas], ["Monto anulado", r.montoAnulado],
       [], ["Medio de pago", "Monto"], ...Object.entries(r.porMedio).map(([m, v]) => [MEDIOS[m] || m, v]),
       [], ["Tipo de venta", "Ventas", "Monto"], ...[...r.porTipo.entries()].map(([k, x]) => [TIPOS_VENTA[k], x.cant, x.total]),
+      ...(r.porTurno.size ? [[], ["Turno de caja", "Ventas", "Monto", "Ticket promedio"], ...[...r.porTurno.entries()].map(([k, x]) => [k, x.cant, x.total, Math.round(x.total / x.cant)])] : []),
     ], [22, 22]), "Resumen");
     XLSX.utils.book_append_sheet(wb, hoja([
-      ["Día comercial", "Hora", "Nº", "Tipo", "Mesa / pedido", "Mozo", "Comensales", "Subtotal", "Descuento", "Total", "Propina", "Medios de pago", "Estado"],
-      ...ventas.map((v) => [fecha(diaComercial(v.ts)), horaTxt(v.ts), v.nro, TIPOS_VENTA[v.tipo] || "Mesas", v.mesaNombre, v.mozo, v.comensales || "", v.subtotal, v.descuento?.monto || 0, v.total, v.propina || 0,
+      ["Día comercial", "Hora", "Turno", "Nº", "Tipo", "Mesa / pedido", "Mozo", "Comensales", "Subtotal", "Descuento", "Total", "Propina", "Medios de pago", "Estado"],
+      ...ventas.map((v) => [fecha(diaComercial(v.ts)), horaTxt(v.ts), turnoDeVenta(v), v.nro, TIPOS_VENTA[v.tipo] || "Mesas", v.mesaNombre, v.mozo, v.comensales || "", v.subtotal, v.descuento?.monto || 0, v.total, v.propina || 0,
         (v.pagos || []).map((x) => `${MEDIOS[x.medio] || x.medio} ${x.monto}`).join(" + "), v.estado === "anulada" ? "Anulada" : "OK"]),
-    ], [13, 7, 10, 12, 18, 12, 11, 11, 11, 11, 9, 34, 9]), "Ventas");
+    ], [13, 7, 14, 10, 12, 18, 12, 11, 11, 11, 11, 9, 34, 9]), "Ventas");
     XLSX.utils.book_append_sheet(wb, hoja([
       ["Producto", "Categoría", "Cantidad", "Importe (sin descuentos)"],
       ...[...r.productos.values()].sort((a, b) => b.cant - a.cant).map((x) => [x.desc, x.cat, x.cant, x.importe]),

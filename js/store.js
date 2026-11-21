@@ -16,6 +16,7 @@ export const CONFIG_DEF = {
   propina: true,          // se puede sumar propina al cobrar
   propinaPct: 10,         // porcentaje sugerido
   propinaPrecuenta: false, // imprimir la propina sugerida en la precuenta
+  turnos: [],             // turnos de caja: [{ id, nombre, desde: "08:00", hasta: "16:00" }]; vacío = una sola caja
 };
 
 export const S = {
@@ -51,8 +52,9 @@ export const SECTORES = { cocina: "Cocina", barra: "Barra", ninguno: "Lo sirve e
 export const ESTADOS_ITEM = { nuevo: "Sin enviar", pendiente: "Pendiente", preparando: "En preparación", listo: "Listo", entregado: "Entregado", anulado: "Anulado" };
 
 const PERMISOS = {
-  admin: ["salon", "mesa", "cocina", "caja", "reportes", "productos", "reservas", "compras", "clientes", "recordatorios", "usuarios", "ajustes", "ajustesNegocio", "anular"],
-  dueno: ["salon", "mesa", "cocina", "caja", "reportes", "productos", "reservas", "compras", "clientes", "recordatorios", "usuarios", "ajustes", "ajustesNegocio", "anular"],
+  admin: ["salon", "mesa", "cocina", "caja", "reportes", "resultado", "productos", "reservas", "compras", "clientes", "recordatorios", "usuarios", "ajustes", "ajustesNegocio", "anular"],
+  // "resultado" (gastos fijos y resultado del mes) es solo para el dueño: incluye sueldos
+  dueno: ["salon", "mesa", "cocina", "caja", "reportes", "resultado", "productos", "reservas", "compras", "clientes", "recordatorios", "usuarios", "ajustes", "ajustesNegocio", "anular"],
   encargado: ["salon", "mesa", "cocina", "caja", "reportes", "productos", "reservas", "compras", "clientes", "recordatorios", "ajustes", "ajustesNegocio", "anular"],
   mozo: ["salon", "mesa", "reservas", "ajustes"],
   cocina: ["cocina", "ajustes"],
@@ -60,6 +62,29 @@ const PERMISOS = {
 export function puede(accion) {
   if (accion === "cobrar") return ["admin", "dueno", "encargado"].includes(S.rol) || (S.rol === "mozo" && !!S.config.mozoCobra);
   return (PERMISOS[S.rol] || []).includes(accion);
+}
+
+// ── Turnos de caja ──
+// Cada bar define cuántas veces abre y cierra la caja por día. Sin turnos (o uno solo) no se elige nada.
+export const turnosCaja = () => (Array.isArray(S.config.turnos) ? S.config.turnos.filter((t) => t && t.nombre) : []);
+const aMinutos = (hhmm) => { const [h, m] = String(hhmm || "").split(":").map(Number); return ((h || 0) * 60 + (m || 0)) % 1440; };
+// El turno que corresponde a una hora. Si cae fuera de todos, el próximo en empezar.
+export function turnoPorHora(ts = Date.now(), lista = turnosCaja()) {
+  if (!lista.length) return null;
+  const d = new Date(ts);
+  const m = d.getHours() * 60 + d.getMinutes();
+  const dentro = (t) => {
+    const a = aMinutos(t.desde), b = aMinutos(t.hasta);
+    if (a === b) return true;
+    return a < b ? m >= a && m < b : m >= a || m < b; // los que pasan la medianoche
+  };
+  return lista.find(dentro) || [...lista].sort((x, y) => ((aMinutos(x.desde) - m + 1440) % 1440) - ((aMinutos(y.desde) - m + 1440) % 1440))[0];
+}
+// Nombre del turno de una venta (las ventas viejas, sin turno guardado, se ubican por la hora)
+export function turnoDeVenta(v) {
+  if (v.turno?.nombre) return v.turno.nombre;
+  const lista = turnosCaja();
+  return lista.length > 1 ? turnoPorHora(v.ts, lista)?.nombre || "" : "";
 }
 
 // ── Derivados ──

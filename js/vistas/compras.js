@@ -180,7 +180,7 @@ function pagarProveedor(p) {
       { op: "set", col: "compras", id, data: { tipo: "pago", proveedorId: p.id, proveedorNombre: p.nombre, total: monto, pago, ts: t, fecha: fechaStr(t), usuario: S.perfil.nombre, estado: "ok", jornadaId: S.jornada?.id || "" } },
       { op: "update", col: "proveedores", id: p.id, data: { deuda: inc(-monto) } },
     ];
-    if (pago === "caja") { const mc = db.newId("movCaja"); ops[0].data.movCajaId = mc; ops.push({ op: "set", col: "movCaja", id: mc, data: { jornadaId: S.jornada.id, tipo: "gasto", monto, desc: `Pago a ${p.nombre}`, medio: "efectivo", ts: t, usuario: S.perfil.nombre } }); }
+    if (pago === "caja") { const mc = db.newId("movCaja"); ops[0].data.movCajaId = mc; ops.push({ op: "set", col: "movCaja", id: mc, data: { jornadaId: S.jornada.id, tipo: "gasto", monto, desc: `Pago a ${p.nombre}`, medio: "efectivo", ts: t, usuario: S.perfil.nombre, compraId: id } }); }
     db.batch(ops);
     log("compra", `Pago a ${p.nombre}: ${fmt(monto)} (${PAGOS_COMPRA[pago]})`);
     toast(`Pago registrado: ${fmt(monto)}`);
@@ -307,7 +307,7 @@ export function nuevaCompra(provInicial = null) {
     if (pago === "debe") ops.push({ op: "update", col: "proveedores", id: prov.id, data: { deuda: inc(tot) } });
     if (pago === "caja" && tot > 0) {
       compra.movCajaId = db.newId("movCaja");
-      ops.push({ op: "set", col: "movCaja", id: compra.movCajaId, data: { jornadaId: S.jornada.id, tipo: "gasto", monto: tot, desc: `Compra${prov ? ` a ${prov.nombre}` : ""}`, medio: "efectivo", ts: Date.now(), usuario: S.perfil.nombre } });
+      ops.push({ op: "set", col: "movCaja", id: compra.movCajaId, data: { jornadaId: S.jornada.id, tipo: "gasto", monto: tot, desc: `Compra${prov ? ` a ${prov.nombre}` : ""}`, medio: "efectivo", ts: Date.now(), usuario: S.perfil.nombre, compraId: id } });
     }
     ops.unshift({ op: "set", col: "compras", id, data: compra });
     db.batch(ops);

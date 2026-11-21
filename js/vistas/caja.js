@@ -5,7 +5,7 @@
 // las 3 de la mañana sin partirse a medianoche. Al cerrar se cuenta
 // el efectivo y se registra la diferencia (arqueo).
 import { CONFIG } from "../config.js";
-import { S, puede, MEDIOS, itemsDe, totalItems, log } from "../store.js";
+import { S, puede, MEDIOS, itemsDe, totalItems, log, turnosCaja, turnoPorHora } from "../store.js";
 import { db, inc } from "../db.js";
 import { esc, fmt, num, hora, fechaHora, durTxt, icon, modal, toast, confirmar, pedirTexto } from "../util.js";
 import { imprimir, ticketCierre, ticketVenta } from "../print.js";
@@ -39,6 +39,7 @@ export function mount(root) {
   let ventas = [], movs = [], historial = [];
   let subs = [];
   let jornadaId = null;
+  let turnoElegido = null; // id del turno que se va a abrir
 
   root.innerHTML = `<div class="caja" id="caja"></div>`;
   const cont = root.querySelector("#caja");
@@ -60,6 +61,7 @@ export function mount(root) {
     if (!j) {
       // No pisar el fondo que se está escribiendo
       if (!cont.querySelector("#fAbrir")) cont.innerHTML = vistaCerrada();
+      cont.querySelector("#cFondoHint").innerHTML = hintFondo();
       cont.querySelector("#cHist").innerHTML = historialHtml();
       return;
     }
@@ -70,7 +72,7 @@ export function mount(root) {
     cont.innerHTML = `
       <div class="caja-cab">
         <div>
-          <h2>Caja abierta <span class="pill verde">${durTxt(j.aperturaTs)}</span></h2>
+          <h2>Caja abierta${j.turno ? ` · ${esc(j.turno.nombre)}` : ""} <span class="pill verde">${durTxt(j.aperturaTs)}</span></h2>
           <p class="ayuda">Desde ${fechaHora(j.aperturaTs)} · abrió ${esc(j.apertura?.usuario || "")} · fondo ${fmt(j.apertura?.fondo)}</p>
         </div>
         <div class="caja-botones">
@@ -118,22 +120,33 @@ export function mount(root) {
   }
 
   function vistaCerrada() {
+    const ts = turnosCaja();
+    if (ts.length > 1 && !ts.some((t) => t.id === turnoElegido)) turnoElegido = turnoPorHora(Date.now(), ts)?.id || ts[0].id;
     return `
       <div class="tarjeta abrir-caja">
         <h2>Abrir caja</h2>
-        <p class="ayuda">Contá el efectivo con el que arranca la noche. La caja queda abierta hasta que la cierres, aunque pase la medianoche.</p>
+        <p class="ayuda">${ts.length > 1 ? "Elegí el turno y contá el efectivo con el que arranca." : "Contá el efectivo con el que arranca la noche."} La caja queda abierta hasta que la cierres, aunque pase la medianoche.</p>
         <form class="form" id="fAbrir">
-          <label class="campo"><span>Fondo inicial</span><input class="input grande" id="cFondo" inputmode="decimal" placeholder="$ 0" autofocus></label>
+          ${ts.length > 1 ? `<div class="campo"><span>Turno</span><div class="segmentado ancho turnos-caja" id="cTurno">${ts.map((t) => `<button type="button" data-turno="${esc(t.id)}" class="${t.id === turnoElegido ? "activo" : ""}"><b>${esc(t.nombre)}</b><small>${esc(t.desde)} a ${esc(t.hasta)}</small></button>`).join("")}</div></div>` : ""}
+          <label class="campo"><span>Fondo inicial</span><input class="input grande" id="cFondo" inputmode="decimal" placeholder="$ 0" autofocus>
+            <small class="ayuda" id="cFondoHint"></small></label>
           <button class="btn btn-pri btn-bloque btn-grande">Abrir caja</button>
         </form>
       </div>
       <div id="cHist"></div>`;
   }
 
+  // El efectivo que quedó en la caja anterior suele ser el fondo de la siguiente
+  function hintFondo() {
+    const ult = historial[0];
+    if (!ult || Date.now() - (ult.cierreTs || 0) > 14 * 3600000 || ult.cierre?.contado == null) return "";
+    return `${ult.turno ? `El turno ${esc(ult.turno.nombre)}` : "La caja anterior"} cerró con ${fmt(ult.cierre.contado)} contados. <button type="button" class="btn-texto" data-act="usarFondo" data-monto="${Math.round(ult.cierre.contado)}">Usar ese monto</button>`;
+  }
+
   function historialHtml() {
-    return historial.length ? `<section class="tarjeta"><h3>Jornadas anteriores</h3><div class="lista">${historial.map((j) => `
+    return historial.length ? `<section class="tarjeta"><h3>${turnosCaja().length > 1 ? "Turnos anteriores" : "Jornadas anteriores"}</h3><div class="lista">${historial.map((j) => `
         <button class="fila-lista boton" data-jornada="${esc(j.id)}">
-          <div><b>${fechaHora(j.aperturaTs)} → ${hora(j.cierreTs)}</b><small>${esc(j.apertura?.usuario || "")} · ${j.cierre?.cant || 0} ventas</small></div>
+          <div><b>${fechaHora(j.aperturaTs)} → ${hora(j.cierreTs)}</b><small>${j.turno ? `${esc(j.turno.nombre)} · ` : ""}${esc(j.apertura?.usuario || "")} · ${j.cierre?.cant || 0} ventas</small></div>
           <span>${fmt(j.cierre?.total)}</span>
           <span class="${Math.abs(j.cierre?.diferencia || 0) < 1 ? "pos" : "neg"}">${Math.abs(j.cierre?.diferencia || 0) < 1 ? "Cuadró" : (j.cierre.diferencia > 0 ? "+" : "") + fmt(j.cierre.diferencia)}</span>
         </button>`).join("")}</div></section>` : "";
@@ -143,9 +156,11 @@ export function mount(root) {
   function abrir(fondo) {
     if (S.jornada) return;
     const t = Date.now();
-    db.add("jornadas", { estado: "abierta", aperturaTs: t, apertura: { fondo, usuario: S.perfil.nombre, uid: S.user.uid } });
-    log("caja", `Caja abierta con fondo ${fmt(fondo)}`);
-    toast("Caja abierta");
+    const ts = turnosCaja();
+    const tu = ts.length > 1 ? ts.find((x) => x.id === turnoElegido) || turnoPorHora(t, ts) : null;
+    db.add("jornadas", { estado: "abierta", aperturaTs: t, apertura: { fondo, usuario: S.perfil.nombre, uid: S.user.uid }, ...(tu ? { turno: { id: tu.id, nombre: tu.nombre } } : {}) });
+    log("caja", `Caja abierta${tu ? ` (${tu.nombre})` : ""} con fondo ${fmt(fondo)}`);
+    toast(tu ? `Caja abierta · ${tu.nombre}` : "Caja abierta");
   }
 
   async function movimiento(tipo) {
@@ -212,7 +227,7 @@ export function mount(root) {
     const r = resumenJornada(j, ventas, movs);
     const abiertas = S.comandas.length;
     const m = modal({
-      titulo: "Cerrar caja",
+      titulo: j.turno ? `Cerrar caja · ${j.turno.nombre}` : "Cerrar caja",
       cuerpo: `
         ${abiertas ? `<div class="banda ambar">${icon("alerta")} Hay ${abiertas} mesa${abiertas > 1 ? "s" : ""} abierta${abiertas > 1 ? "s" : ""}. Lo que se cobre después va a la próxima jornada.</div>` : ""}
         <div class="co-linea"><span>Fondo inicial</span><span>${fmt(j.apertura?.fondo)}</span></div>
@@ -251,7 +266,7 @@ export function mount(root) {
         ...(r.propinas ? { propinas: r.propinas, propinasMozo: r.propinasMozo } : {}),
       };
       db.update("jornadas", j.id, { estado: "cerrada", cierreTs: t, cierre });
-      log("caja", `Caja cerrada · vendido ${fmt(r.total)} · diferencia ${fmt(d)}`);
+      log("caja", `Caja cerrada${j.turno ? ` (${j.turno.nombre})` : ""} · vendido ${fmt(r.total)} · diferencia ${fmt(d)}`);
       m.cerrar();
       const jc = { ...j, cierreTs: t, cierre };
       const fin = modal({
@@ -271,7 +286,7 @@ export function mount(root) {
     const c = j.cierre || {};
     const r = { porMedio: c.porMedio || {}, total: c.total || 0, cant: c.cant || 0, anuladas: c.anuladas || 0, ingresos: c.ingresos || 0, gastosEf: c.gastosEf || 0, retiros: c.retiros || 0, esperado: c.esperado || 0, propinas: c.propinas || 0, propinasMozo: c.propinasMozo || {} };
     const m = modal({
-      titulo: `Jornada ${fechaHora(j.aperturaTs)}`,
+      titulo: `${j.turno ? `${j.turno.nombre} · ` : "Jornada "}${fechaHora(j.aperturaTs)}`,
       cuerpo: `
         ${Object.entries(r.porMedio).filter(([, v]) => v).map(([k, v]) => `<div class="co-linea"><span>${MEDIOS[k] || k}</span><span>${fmt(v)}</span></div>`).join("")}
         <div class="co-linea total"><span>Total vendido</span><b>${fmt(r.total)}</b></div>
@@ -293,6 +308,10 @@ export function mount(root) {
   });
   root.addEventListener("click", async (e) => {
     const t = e.target;
+    const bt = t.closest("[data-turno]");
+    if (bt) { turnoElegido = bt.dataset.turno; root.querySelectorAll("[data-turno]").forEach((b) => b.classList.toggle("activo", b === bt)); return; }
+    const uf = t.closest('[data-act="usarFondo"]');
+    if (uf) { const i = root.querySelector("#cFondo"); i.value = uf.dataset.monto; i.focus(); return; }
     const mov = t.closest("[data-mov]");
     if (mov) return movimiento(mov.dataset.mov);
     const bm = t.closest("[data-borrarmov]");

@@ -1,7 +1,7 @@
 // ============================================================
 //  A&F · Ajustes: este dispositivo, negocio y mesas
 // ============================================================
-import { S, puede, MEDIOS, dispositivo, guardarDispositivo, sectoresMesas, comandaDeMesa, log, PANTALLAS_INICIO } from "../store.js";
+import { S, puede, MEDIOS, dispositivo, guardarDispositivo, sectoresMesas, comandaDeMesa, log, PANTALLAS_INICIO, turnosCaja } from "../store.js";
 import { db, auth, MODO } from "../db.js";
 import { esc, icon, modal, toast, confirmar, pedirTexto, fechaHora, num } from "../util.js";
 import { imprimir, imprimirHoja, ticketPrueba, conectarBluetooth, conectarUSB, btConectada, usbConectada } from "../print.js";
@@ -10,7 +10,7 @@ import { qrcode } from "../vendor/qrcode.mjs";
 import { descargarRespaldo, diasSinRespaldo } from "../respaldo.js";
 import { firmaHTML, iconoContacto, usuarioRed } from "../firma.js";
 
-const VERSION_APP = "0.9.1";
+const VERSION_APP = "1.0.0";
 
 const MODOS = {
   ninguna: { t: "Sin impresora", d: "Este dispositivo no imprime." },
@@ -29,7 +29,7 @@ export function mount(root) {
   root.innerHTML = `
     <div class="ajustes">
       <section class="tarjeta" id="aDisp"></section>
-      ${negocio ? `<section class="tarjeta" id="aCarta"></section><section class="tarjeta" id="aResp"></section><section class="tarjeta" id="aMesas"></section><section class="tarjeta" id="aNeg"></section>` : ""}
+      ${negocio ? `<section class="tarjeta" id="aCarta"></section><section class="tarjeta" id="aResp"></section><section class="tarjeta" id="aMesas"></section><section class="tarjeta" id="aTurnos"></section><section class="tarjeta" id="aNeg"></section>` : ""}
       ${MODO === "demo" ? `<section class="tarjeta"><h3>Modo demo</h3><p class="ayuda">Los datos están solo en este navegador.</p><button class="btn btn-peligro" data-act="reset">Reiniciar datos del demo</button></section>` : ""}
       <footer class="ajustes-pie"><img src="img/logo.svg" alt="A&F"><small>Versión ${VERSION_APP}</small>${firmaHTML()}</footer>
     </div>`;
@@ -218,6 +218,57 @@ export function mount(root) {
         || `<p class="ayuda">No hay mesas todavía.</p>`}`;
   }
 
+  // ── Turnos de caja ──
+  const PRESET_TURNOS = {
+    2: [["Mañana/tarde", "08:00", "16:00"], ["Tarde/noche", "16:00", "02:00"]],
+    3: [["Mañana", "07:00", "13:00"], ["Tarde", "13:00", "19:00"], ["Noche", "19:00", "02:00"]],
+    4: [["Mañana", "07:00", "12:00"], ["Mediodía", "12:00", "16:00"], ["Tarde", "16:00", "20:00"], ["Noche", "20:00", "02:00"]],
+  };
+  const idTurno = () => "t" + Math.random().toString(36).slice(2, 8);
+  let borrador = null; // turnos en edición (no se pisa con cambios de otro dispositivo mientras se edita)
+  function renderTurnos() {
+    const el = root.querySelector("#aTurnos");
+    if (!el) return;
+    if (!borrador) borrador = turnosCaja().map((t) => ({ ...t }));
+    const n = Math.max(1, borrador.length);
+    el.innerHTML = `
+      <h3>Turnos de caja</h3>
+      <p class="ayuda">Cuántas veces se abre y se cierra la caja por día. Al abrir la caja se elige el turno (se sugiere según la hora) y en Reportes se ven las ventas de cada turno.</p>
+      <div class="segmentado ancho" id="tCant">${[1, 2, 3, 4].map((k) => `<button type="button" data-tn="${k}" class="${k === n ? "activo" : ""}">${["", "Uno", "Dos", "Tres", "Cuatro"][k]}</button>`).join("")}</div>
+      ${n === 1 ? `<p class="ayuda">Una sola caja por día: no hace falta elegir turno al abrir.</p>` : `
+        <div class="turnos-ed">
+          <div class="te-fila te-cab"><span>Nombre</span><span>Desde</span><span>Hasta</span></div>
+          ${borrador.map((t, k) => `<div class="te-fila"><input class="input" data-tnom="${k}" value="${esc(t.nombre)}" placeholder="Turno ${k + 1}" maxlength="24"><input class="input te-hora" inputmode="numeric" maxlength="5" placeholder="08:00" data-tdesde="${k}" value="${esc(t.desde)}"><input class="input te-hora" inputmode="numeric" maxlength="5" placeholder="16:00" data-thasta="${k}" value="${esc(t.hasta)}"></div>`).join("")}
+        </div>
+        <p class="ayuda">El horario sirve para sugerir el turno al abrir la caja y para ubicar las ventas anteriores a este cambio. Un turno puede pasar la medianoche (por ejemplo, de 16:00 a 02:00).</p>`}
+      <button type="button" class="btn btn-pri" data-act="guardarTurnos">Guardar turnos</button>`;
+  }
+  // "8" → 08:00 · "1630" → 16:30 · "2:5" → 02:05 · cualquier otra cosa → null
+  function normalizarHora(v) {
+    const s = String(v || "").trim().replace(/[.h]/gi, ":");
+    let h, m;
+    if (/^\d{1,2}$/.test(s)) [h, m] = [Number(s), 0];
+    else if (/^\d{3,4}$/.test(s)) [h, m] = [Number(s.slice(0, -2)), Number(s.slice(-2))];
+    else if (/^\d{1,2}:\d{1,2}$/.test(s)) [h, m] = s.split(":").map(Number);
+    else return null;
+    if (h === 24 && m === 0) h = 0;
+    return h < 24 && m < 60 ? `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}` : null;
+  }
+  function guardarTurnos() {
+    const lista = borrador.map((t) => ({ id: t.id || idTurno(), nombre: String(t.nombre || "").trim(), desde: normalizarHora(t.desde), hasta: normalizarHora(t.hasta) }));
+    if (lista.length > 1) {
+      if (lista.some((t) => !t.desde || !t.hasta)) return toast("Revisá los horarios: van como 08:00 o 16:30", "error");
+      if (lista.some((t) => !t.nombre)) return toast("Poné un nombre a cada turno", "error");
+      if (new Set(lista.map((t) => t.nombre.toLowerCase())).size !== lista.length) return toast("Hay dos turnos con el mismo nombre", "error");
+    }
+    const final = lista.length > 1 ? lista : [];
+    db.merge("config", "general", { turnos: final });
+    log("ajustes", final.length ? `Turnos de caja: ${final.map((t) => `${t.nombre} (${t.desde}-${t.hasta})`).join(", ")}` : "Turnos de caja: una sola caja por día");
+    toast(final.length ? `${final.length} turnos guardados` : "Una sola caja por día");
+    borrador = null;
+    setTimeout(renderTurnos, 50);
+  }
+
   async function agregarMesas(varias) {
     const sectores = sectoresMesas();
     const nums = S.mesas.map((m) => parseInt(String(m.nombre).replace(/\D+/g, ""), 10)).filter((n) => !isNaN(n));
@@ -253,6 +304,20 @@ export function mount(root) {
   }
 
   // ── Eventos ──
+  // Al salir de un horario, se acomoda el formato (8 → 08:00)
+  root.addEventListener("focusout", (e) => {
+    const t = e.target;
+    if (!borrador || !t.classList?.contains("te-hora")) return;
+    const h = normalizarHora(t.value);
+    if (h) { t.value = h; if (t.dataset.tdesde !== undefined) borrador[Number(t.dataset.tdesde)].desde = h; else borrador[Number(t.dataset.thasta)].hasta = h; }
+  });
+  root.addEventListener("input", (e) => {
+    const t = e.target;
+    if (!borrador) return;
+    if (t.dataset.tnom !== undefined) borrador[Number(t.dataset.tnom)].nombre = t.value;
+    else if (t.dataset.tdesde !== undefined) borrador[Number(t.dataset.tdesde)].desde = t.value;
+    else if (t.dataset.thasta !== undefined) borrador[Number(t.dataset.thasta)].hasta = t.value;
+  });
   root.addEventListener("change", (e) => {
     const t = e.target;
     if (t.id === "dModo") { guardarDispositivo({ impresora: { modo: t.value } }); renderDisp(); }
@@ -267,6 +332,16 @@ export function mount(root) {
     }
   });
   root.addEventListener("click", async (e) => {
+    const tn = e.target.closest("[data-tn]");
+    if (tn) {
+      const n = Number(tn.dataset.tn);
+      if (n === Math.max(1, borrador.length)) return;
+      // Al cambiar la cantidad se proponen nombres y horarios típicos; se pueden editar antes de guardar
+      const actuales = turnosCaja();
+      borrador = n === 1 ? [] : actuales.length === n ? actuales.map((t) => ({ ...t })) : PRESET_TURNOS[n].map(([nombre, desde, hasta]) => ({ id: idTurno(), nombre, desde, hasta }));
+      renderTurnos();
+      return;
+    }
     const an = e.target.closest("[data-ancho]");
     if (an) { guardarDispositivo({ impresora: { ancho: Number(an.dataset.ancho) } }); renderDisp(); return; }
     const rn = e.target.closest("[data-renombrar]");
@@ -302,6 +377,7 @@ export function mount(root) {
       case "agregarMesa": agregarMesas(false); break;
       case "agregarVarias": agregarMesas(true); break;
       case "respaldo": descargarRespaldo(a); break;
+      case "guardarTurnos": guardarTurnos(); break;
       case "reset": if (await confirmar("Se borran todas las ventas y cambios del demo.", { ok: "Reiniciar", peligro: true })) auth.demoReset(); break;
     }
   });
@@ -309,6 +385,7 @@ export function mount(root) {
   renderDisp();
   renderNeg();
   renderMesas();
+  renderTurnos();
   renderCarta();
   renderResp();
   return {

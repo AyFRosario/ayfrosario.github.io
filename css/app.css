@@ -858,3 +858,34 @@ body.offline .barra-sup { box-shadow: inset 0 -3px 0 var(--rojo); }
 .aj-prop-det { display: flex; flex-direction: column; gap: 8px; padding-left: 4px; }
 .aj-prop-det[hidden] { display: none; }
 @media (max-width: 560px) { .gr-op { grid-template-columns: 1fr 90px 36px; } }
+
+/* ── v1.0: turnos de caja ── */
+.turnos-caja button { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 6px; line-height: 1.15; }
+.turnos-caja button small { font-size: 11px; font-weight: 500; color: var(--texto2); }
+.turnos-ed { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
+.te-fila { display: grid; grid-template-columns: 1fr 96px 96px; gap: 6px; align-items: center; }
+.te-cab span { font-size: 12px; font-weight: 600; color: var(--texto2); }
+#aTurnos .segmentado { margin-top: 10px; }
+#aTurnos > .btn { margin-top: 10px; }
+.te-hora { font-family: var(--fm); text-align: center; }
+@media (max-width: 560px) { .te-fila { grid-template-columns: 1fr 76px 76px; } .te-fila .input { padding-left: 8px; padding-right: 8px; } }
+
+/* ── v1.0: gastos y resultado ── */
+.res-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.res-cab h2 { margin: 0; min-width: 0; flex: 0 1 auto; font-size: 22px; }
+.res-cab .btn-icono:disabled { opacity: .3; }
+.gira { display: inline-flex; transform: rotate(180deg); }
+.res-kpi.res-pos b { color: var(--verde); }
+.res-kpi.res-neg b { color: var(--rojo); }
+.res-cuenta .co-linea span small { display: block; font-size: 12px; color: var(--texto2); font-weight: 400; }
+.res-cuenta .co-linea.total.res-pos b { color: var(--verde); }
+.res-cuenta .co-linea.total.res-neg b { color: var(--rojo); }
+.co-linea.enlace { width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; color: inherit; text-decoration: none; cursor: pointer; font: inherit; font-size: 14px; }
+.co-linea.enlace:hover:not(:disabled) { background: var(--sup2); }
+.co-linea.enlace:disabled { cursor: default; }
+.res-cat + .res-cat { margin-top: 10px; }
+.res-cat h4 { display: flex; justify-content: space-between; align-items: baseline; }
+.res-cat h4 span { font-family: var(--fm); font-weight: 500; }
+.res-copiar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.res-copiar span { flex: 1; }
+#cFondoHint:empty { display: none; }

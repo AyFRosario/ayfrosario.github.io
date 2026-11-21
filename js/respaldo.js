@@ -5,7 +5,7 @@
 // del importador, así se puede volver a cargar), insumos, ventas con
 // detalle, cajas, clientes, proveedores, compras, reservas y más.
 // Guarda la fecha del último respaldo para recordarlo al cerrar caja.
-import { S, MEDIOS, ROLES, fmtCantidad, log, visibleParaMi } from "./store.js";
+import { S, MEDIOS, ROLES, fmtCantidad, log, visibleParaMi, puede, turnoDeVenta } from "./store.js";
 import { db } from "./db.js";
 import { toast } from "./util.js";
 import { cargarXLSX, hojaCartaActual } from "./importar.js";
@@ -33,6 +33,7 @@ export async function descargarRespaldo(boton) {
       q("ventas"), q("jornadas"), q("movCaja"), q("clientes"), q("movClientes"), q("proveedores"), q("compras"),
       q("reservas"), q("recordatorios"), q("logs", { orderBy: ["ts", "desc"], limit: 3000 }),
     ]);
+    const gastos = puede("resultado") ? await q("gastos") : []; // incluye sueldos: solo dueño y administrador
     const por = (k) => (a, b) => (a[k] || 0) - (b[k] || 0);
     const wb = XLSX.utils.book_new();
     const hoja = (nombre, filas, anchos) => {
@@ -50,14 +51,14 @@ export async function descargarRespaldo(boton) {
     hoja("Mesas", [["Mesa", "Sector", "Lugares"], ...S.mesas.map((m) => [m.nombre, m.sector || "", m.capacidad || ""])], [16, 16, 10]);
 
     ventas.sort(por("ts"));
-    hoja("Ventas", [["Fecha", "Nº", "Tipo", "Mesa / pedido", "Cliente", "Teléfono", "Dirección", "Mozo", "Subtotal", "Descuento", "Total", "Pagos", "Estado"],
-      ...ventas.map((v) => [fechaHora(v.ts), v.nro || "", { llevar: "Para llevar", delivery: "Delivery", mostrador: "Venta rápida" }[v.tipo] || "Mesa", v.mesaNombre || "", v.cliente?.nombre || "", v.cliente?.telefono || "", v.cliente?.direccion || "", v.mozo || "", r(v.subtotal || 0), r(v.descuento?.monto || 0), r(v.total || 0), medios(v.pagos), v.estado === "anulada" ? "Anulada" : "OK"])], [17, 12, 12, 20, 18, 14, 24, 14, 11, 11, 11, 40, 9]);
+    hoja("Ventas", [["Fecha", "Turno", "Nº", "Tipo", "Mesa / pedido", "Cliente", "Teléfono", "Dirección", "Mozo", "Subtotal", "Descuento", "Total", "Pagos", "Estado"],
+      ...ventas.map((v) => [fechaHora(v.ts), turnoDeVenta(v), v.nro || "", { llevar: "Para llevar", delivery: "Delivery", mostrador: "Venta rápida" }[v.tipo] || "Mesa", v.mesaNombre || "", v.cliente?.nombre || "", v.cliente?.telefono || "", v.cliente?.direccion || "", v.mozo || "", r(v.subtotal || 0), r(v.descuento?.monto || 0), r(v.total || 0), medios(v.pagos), v.estado === "anulada" ? "Anulada" : "OK"])], [17, 14, 12, 12, 20, 18, 14, 24, 14, 11, 11, 11, 40, 9]);
     hoja("Ventas detalle", [["Fecha", "Nº", "Producto", "Cantidad", "Precio", "Subtotal", "Estado"],
       ...ventas.flatMap((v) => (v.items || []).map((i) => [fechaHora(v.ts), v.nro || "", i.desc, i.cant, r(i.precio), r(i.precio * i.cant), v.estado === "anulada" ? "Anulada" : "OK"]))], [17, 12, 34, 9, 10, 11, 9]);
 
     jornadas.sort(por("aperturaTs"));
-    hoja("Cajas", [["Abrió", "Por", "Cerró", "Por", "Fondo", "Vendido", "Ventas", "Efectivo esperado", "Contado", "Diferencia", "Nota"],
-      ...jornadas.map((j) => { const c = j.cierre || {}; return [fechaHora(j.aperturaTs), j.apertura?.usuario || "", j.cierreTs ? fechaHora(j.cierreTs) : "Abierta", c.usuario || "", r(j.apertura?.fondo || 0), j.cierreTs ? r(c.total || 0) : "", j.cierreTs ? c.cant || 0 : "", j.cierreTs ? r(c.esperado || 0) : "", j.cierreTs ? r(c.contado || 0) : "", j.cierreTs ? r(c.diferencia || 0) : "", c.nota || ""]; })], [17, 12, 17, 12, 10, 12, 8, 16, 11, 11, 24]);
+    hoja("Cajas", [["Turno", "Abrió", "Por", "Cerró", "Por", "Fondo", "Vendido", "Ventas", "Efectivo esperado", "Contado", "Diferencia", "Nota"],
+      ...jornadas.map((j) => { const c = j.cierre || {}; return [j.turno?.nombre || "", fechaHora(j.aperturaTs), j.apertura?.usuario || "", j.cierreTs ? fechaHora(j.cierreTs) : "Abierta", c.usuario || "", r(j.apertura?.fondo || 0), j.cierreTs ? r(c.total || 0) : "", j.cierreTs ? c.cant || 0 : "", j.cierreTs ? r(c.esperado || 0) : "", j.cierreTs ? r(c.contado || 0) : "", j.cierreTs ? r(c.diferencia || 0) : "", c.nota || ""]; })], [14, 17, 12, 17, 12, 10, 12, 8, 16, 11, 11, 24]);
     movCaja.sort(por("ts"));
     hoja("Movimientos de caja", [["Fecha", "Tipo", "Descripción", "Monto", "Usuario"],
       ...movCaja.map((m) => [fechaHora(m.ts), m.tipo, m.desc || "", r(m.monto), m.usuario || ""])], [17, 10, 36, 11, 14]);
@@ -71,6 +72,11 @@ export async function descargarRespaldo(boton) {
     compras.sort(por("ts"));
     hoja("Compras", [["Fecha", "Tipo", "Proveedor", "Detalle", "Total", "Pago", "Comprobante", "Estado"],
       ...compras.map((c) => [fechaHora(c.ts), c.tipo === "pago" ? "Pago" : "Compra", c.proveedorNombre || "", (c.lineas || []).map((l) => `${l.nombre} ${fmtCantidad(l.cant, l.unidad)}`).join(", "), r(c.total || 0), { caja: "Caja", otro: "Otro medio", debe: "Debe" }[c.pago] || "", c.comprobante || "", c.estado === "anulada" ? "Anulada" : "OK"])], [17, 8, 22, 50, 11, 11, 18, 9]);
+
+    if (puede("resultado")) {
+      gastos.sort((a, b) => String(a.mes).localeCompare(String(b.mes)) || String(a.categoria).localeCompare(String(b.categoria)));
+      hoja("Gastos fijos", [["Mes", "Categoría", "Detalle", "Monto", "Se repite", "Cargó"], ...gastos.map((g) => [g.mes, g.categoria || "", g.desc || "", r(g.monto || 0), g.fijo ? "Sí" : "No", g.usuario || ""])], [9, 30, 30, 12, 10, 14]);
+    }
 
     reservas.sort((a, b) => `${a.fecha}${a.hora}`.localeCompare(`${b.fecha}${b.hora}`));
     hoja("Reservas", [["Día", "Hora", "Nombre", "Personas", "Teléfono", "Estado", "Nota"],

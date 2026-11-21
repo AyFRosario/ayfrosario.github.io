@@ -134,6 +134,10 @@ service cloud.firestore {
         allow create: if cobra(nid);
       }
 
+      // Gastos fijos del mes (alquiler, sueldos, servicios…): solo dueño y administrador
+      match /gastos/{id} {
+        allow read, write: if duenos(nid);
+      }
       // Vencimientos del local (matafuegos, plagas, habilitación…)
       match /recordatorios/{id} {
         allow read, write: if gestion(nid);

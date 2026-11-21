@@ -203,6 +203,7 @@ export function abrirCobro(cid) {
       mesaId: c.mesaId, mesaNombre: c.mesaNombre, mozo: c.mozo || "", mozoUid: c.mozoUid || "",
       tipo: c.tipo || "mesa", ...(TIPOS_PEDIDO[c.tipo] ? { cliente: c.cliente || {}, hora: c.hora || "" } : {}),
       comensales: c.comensales || 1, abierta: c.abierta || t, ts: t,
+      ...(j.turno ? { turno: j.turno } : {}),
       cobradoPor: S.perfil.nombre, cobradoUid: S.user.uid,
       items: r.lineas, subtotal: r.subtotal,
       descuento: r.desc ? { tipo: st.descTipo, valor: st.descValor, monto: r.desc } : null,
