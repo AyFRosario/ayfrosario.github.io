@@ -3,7 +3,7 @@
 //   apenas se publican en GitHub Pages) y, sin conexión, la copia guardada.
 // · Librerías externas (Firebase, fuentes, lector de códigos): primero la copia
 //   guardada, porque sus direcciones tienen versión fija.
-const VERSION = "af-1.0.1";
+const VERSION = "af-1.0.2";
 const APP = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/app.js", "js/config.js", "js/db.js", "js/db-demo.js", "js/db-firebase.js", "js/store.js",
@@ -43,8 +43,10 @@ self.addEventListener("fetch", (e) => {
     return;
   }
   if (url.origin !== location.origin) return;
+  // "no-cache": siempre pregunta a GitHub si hay versión nueva (si no cambió, la respuesta es mínima).
+  // Sin esto el navegador puede usar archivos viejos hasta 10 minutos después de publicar.
   e.respondWith(
-    fetch(req).then((r) => {
+    fetch(req, { cache: "no-cache" }).then((r) => {
       if (r.ok) { const copia = r.clone(); caches.open(VERSION).then((c) => c.put(req, copia)); }
       return r;
     }).catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match("index.html")))

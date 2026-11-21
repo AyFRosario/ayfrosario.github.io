@@ -1,4 +1,4 @@
-# A&F — versión 1.0.1
+# A&F — versión 1.0.2
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -317,6 +317,9 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
   - **En la lista de Productos,** escanear abre ese producto, o uno nuevo con el código ya puesto si no existe.
   - **En la comanda** carga el producto a la mesa. Si hay una ventana abierta (cobro, opciones…), no carga nada.
   - **En Nueva compra** cada lectura suma una unidad del producto.
+  - **Botones de escanear en PC:** la ventana espera el gatillo del lector y no prende la cámara de la computadora. Si querés usar la cámara, está el botón "Usar la cámara de la computadora", y desde ahí "Lector" para volver. La elección queda recordada.
+  - **En el celular** esos botones siguen abriendo la cámara.
+  - **En cualquier modo,** lo que manda el lector va al recuadro de abajo de esa ventana, aunque el cursor no esté ahí.
 - **Dónde se escanea:**
   - en la comanda, para cargar una lata o una botella a la mesa;
   - en Productos, para cargar el código;
@@ -325,6 +328,8 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
 - La cámara solo funciona con `https` (GitHub Pages ya lo tiene) o en `localhost`.
 
 **v1.0.1:** el lector de mano borraba el código cuando el cursor estaba en el recuadro **Código** de la ficha del producto. Ya está corregido.
+
+**v1.0.2:** en PC, la ventana de escanear prendía la webcam y no recibía lo que mandaba el lector. Ahora espera el gatillo. Además, cada vez que se recarga, la app busca si hay una versión nueva: antes el navegador podía seguir usando archivos viejos hasta 10 minutos después de publicar.
 
 ## 5. Sin conexión
 

@@ -4,8 +4,10 @@
 // · Android (Chrome): usa el lector nativo BarcodeDetector.
 // · iPhone / Firefox: Safari no trae BarcodeDetector, así que se
 //   carga una versión en WebAssembly (ZXing) la primera vez.
-// · PC con lector USB/Bluetooth tipo "teclado": se detecta solo
-//   por la velocidad de tipeo (idea de Dietética Josué).
+// · Lector de mano USB/Bluetooth tipo "teclado": en los recuadros de
+//   código escribe directo; en el resto se detecta por la velocidad.
+// · En PC la ventana de escanear espera el gatillo del lector (la cámara
+//   de la computadora se prende solo si se elige).
 import { beep, vibrar, esc, icon } from "./util.js";
 
 const FORMATOS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf", "qr_code"];
@@ -34,14 +36,22 @@ export function precargarEscaner() {
   obtenerDetector().catch(() => {});
 }
 
+// En una PC (mouse, sin pantalla táctil) lo normal es el lector de mano:
+// la ventana de escanear espera el gatillo y la cámara se prende solo si se pide.
+const esPC = () => matchMedia("(hover: hover) and (pointer: fine)").matches && !(navigator.maxTouchPoints > 0);
+const PREF_CAMARA = "af_escaner_camara";
+
 /**
- * Abre la cámara a pantalla completa.
+ * Abre la ventana de escanear: cámara (celular) o lector de mano (PC).
+ * En los dos modos el lector de mano funciona: lo que tipea va al recuadro de abajo.
  * onCodigo(codigo) puede devolver { ok:boolean, texto:string } para mostrar el resultado.
  * continuo: true → sigue escaneando (ingreso de mercadería, cargar varias latas)
  * Devuelve una promesa con el último código leído (o null si se cerró).
  */
 export function abrirEscaner({ titulo = "Escanear código", continuo = false, onCodigo, extraHtml = "" } = {}) {
   return new Promise((resolve) => {
+    const pc = esPC();
+    let conCamara = !pc || localStorage.getItem(PREF_CAMARA) === "1";
     const el = document.createElement("div");
     el.className = "escaner";
     el.innerHTML = `
@@ -49,13 +59,20 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
       <div class="esc-video">
         <video playsinline muted autoplay></video>
         <div class="esc-marco"><span></span></div>
-        <div class="esc-estado">Abriendo cámara…</div>
+        <div class="esc-estado"></div>
+        <div class="esc-lector">
+          <div class="esc-lector-ic">${icon("scan")}</div>
+          <b>Apretá el gatillo del lector</b>
+          <p>El código se carga solo. También lo podés escribir abajo.</p>
+          <button type="button" class="btn claro" data-modo="camara">Usar la cámara de la computadora</button>
+        </div>
       </div>
       <div class="esc-pie">
         ${extraHtml}
         <div class="esc-ultimo" aria-live="polite"></div>
         <div class="esc-acciones">
           <button type="button" class="btn claro" data-linterna hidden>${icon("flash")} Linterna</button>
+          ${pc ? `<button type="button" class="btn claro" data-modo="lector" hidden>${icon("scan")} Lector</button>` : ""}
           <form class="esc-manual"><input class="input" inputmode="numeric" autocomplete="off" placeholder="o escribí el código"><button class="btn claro">OK</button></form>
         </div>
       </div>`;
@@ -66,19 +83,33 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
     const estado = el.querySelector(".esc-estado");
     const ultimoEl = el.querySelector(".esc-ultimo");
     const btnLuz = el.querySelector("[data-linterna]");
-    let stream = null, track = null, activo = true, ultimo = "", ultimoTs = 0, ocupado = false, luz = false;
+    const manual = el.querySelector(".esc-manual input");
+    let stream = null, track = null, activo = true, ultimo = "", ultimoTs = 0, ocupado = false, luz = false, camaraN = 0;
 
     function cerrar(valor = null) {
       if (!activo) return;
       activo = false;
-      try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
+      detenerCamara();
       el.remove();
       if (!document.querySelector(".modal-fondo")) document.body.classList.remove("con-modal");
-      document.removeEventListener("keydown", onEsc);
+      document.removeEventListener("keydown", onTecla, true);
       resolve(valor);
     }
-    const onEsc = (e) => { if (e.key === "Escape") cerrar(); };
-    document.addEventListener("keydown", onEsc);
+    // Escape cierra. Las teclas del lector van siempre al recuadro de abajo,
+    // aunque el foco haya quedado en otro lado (en un botón, o en ningún lado).
+    const onTecla = (e) => {
+      if (e.key === "Escape") { cerrar(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey || document.activeElement === manual) return;
+      if (e.key.length === 1) {
+        e.preventDefault();
+        manual.focus();
+        manual.value += e.key;
+      } else if (e.key === "Enter" && manual.value.trim()) {
+        e.preventDefault();
+        manual.form.requestSubmit();
+      }
+    };
+    document.addEventListener("keydown", onTecla, true);
     el.querySelector("[data-cerrar]").onclick = () => cerrar();
 
     function manejar(codigo) {
@@ -103,10 +134,10 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
 
     el.querySelector(".esc-manual").onsubmit = (e) => {
       e.preventDefault();
-      const inp = e.target.querySelector("input");
-      const v = inp.value.trim();
-      inp.value = "";
+      const v = manual.value.trim();
+      manual.value = "";
       if (v) { ultimo = ""; manejar(v); }
+      if (!conCamara) manual.focus();
     };
 
     btnLuz.onclick = async () => {
@@ -114,13 +145,38 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
       try { await track.applyConstraints({ advanced: [{ torch: luz }] }); btnLuz.classList.toggle("activo", luz); } catch {}
     };
 
-    (async () => {
+    function detenerCamara() {
+      camaraN++;
+      try { stream?.getTracks().forEach((t) => t.stop()); } catch {}
+      stream = track = null;
+      video.srcObject = null;
+      btnLuz.hidden = true;
+    }
+
+    // Modo lector (PC): sin cámara, el cursor en el recuadro esperando el gatillo
+    function modoLector() {
+      conCamara = false;
+      detenerCamara();
+      el.classList.add("modo-lector");
+      const b = el.querySelector('[data-modo="lector"]');
+      if (b) b.hidden = true;
+      setTimeout(() => manual.focus(), 30);
+    }
+
+    async function modoCamara() {
+      conCamara = true;
+      el.classList.remove("modo-lector");
+      const b = el.querySelector('[data-modo="lector"]');
+      if (b) b.hidden = false;
+      const n = ++camaraN;
+      estado.textContent = "Abriendo cámara…";
       if (!navigator.mediaDevices?.getUserMedia) {
         estado.textContent = "Este navegador no permite usar la cámara. Escribí el código abajo.";
         return;
       }
+      let s;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        s = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
@@ -130,7 +186,8 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
           : "No se pudo abrir la cámara. Podés escribir el código abajo.";
         return;
       }
-      if (!activo) { stream.getTracks().forEach((t) => t.stop()); return; }
+      if (!activo || n !== camaraN) { s.getTracks().forEach((t) => t.stop()); return; }
+      stream = s;
       video.srcObject = stream;
       track = stream.getVideoTracks()[0];
       await video.play().catch(() => {});
@@ -140,10 +197,11 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
       let det;
       try { ({ det } = await obtenerDetector()); }
       catch { estado.textContent = "No se pudo cargar el lector (¿sin conexión?). Escribí el código abajo."; return; }
-      estado.textContent = "Apuntá al código de barras";
+      if (n !== camaraN) return;
+      estado.textContent = pc ? "Apuntá al código de barras (o apretá el gatillo del lector)" : "Apuntá al código de barras";
 
       const ciclo = async () => {
-        if (!activo) return;
+        if (!activo || n !== camaraN) return;
         if (video.readyState >= 2 && !ocupado) {
           ocupado = true;
           try {
@@ -155,7 +213,18 @@ export function abrirEscaner({ titulo = "Escanear código", continuo = false, on
         setTimeout(ciclo, 110);
       };
       ciclo();
-    })();
+    }
+
+    // En PC se recuerda la elección para la próxima vez
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-modo]");
+      if (!b) return;
+      if (b.dataset.modo === "camara") { localStorage.setItem(PREF_CAMARA, "1"); modoCamara(); }
+      else { localStorage.setItem(PREF_CAMARA, "0"); modoLector(); }
+    });
+
+    if (conCamara) modoCamara();
+    else modoLector();
   });
 }
 
