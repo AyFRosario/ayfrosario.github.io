@@ -10,7 +10,7 @@ import { reconectarImpresora } from "./print.js";
 import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
 import { nuevaVentaRapida, rapidasLocales } from "./pedidos.js";
 
-const VERSION = "1.2.2";
+const VERSION = "1.2.3";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
@@ -274,9 +274,13 @@ function renderShell() {
   const rutas = rutasMenu();
   const compacto = S.rol === "cocina";
   const link = ([k, r]) => `<a href="#/${k}" data-ruta="${k}">${icon(r.icono)}<span>${r.titulo}</span></a>`;
+  // En el menú lateral de la PC, la venta rápida muestra su atajo de teclado
+  const linkLateral = ([k, r]) => k === "rapida"
+    ? `<a href="#/${k}" data-ruta="${k}" title="Atajo de teclado: F2">${icon(r.icono)}<span>${r.titulo}</span><kbd class="nav-atajo">F2</kbd></a>`
+    : link([k, r]);
   const links = rutas.map(link).join("");
   let grupo = null;
-  const lateral = rutas.map((x) => { const g = x[1].grupo || ""; const sep = g !== grupo && g ? `<small class="nav-grupo">${g}</small>` : ""; grupo = g; return sep + link(x); }).join("");
+  const lateral = rutas.map((x) => { const g = x[1].grupo || ""; const sep = g !== grupo && g ? `<small class="nav-grupo">${g}</small>` : ""; grupo = g; return sep + linkLateral(x); }).join("");
   // Celular: hasta 5 lugares; si no entran, 4 + "Más"
   const ordenInf = rutas;
   const visiblesInf = ordenInf.length > 5 ? ordenInf.slice(0, 4) : ordenInf;

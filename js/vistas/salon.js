@@ -6,7 +6,7 @@ import { db } from "../db.js";
 import { esc, fmt, durTxt, minutos, icon, modal, toast, iniciales } from "../util.js";
 import { sentar } from "./reservas.js";
 import { pendientesRecordatorios, txtDias } from "./recordatorios.js";
-import { TIPOS_PEDIDO, esPedido, estadoPedido, pedidosAbiertos, nuevoPedido, nuevaVentaRapida, entregarPedido } from "../pedidos.js";
+import { TIPOS_PEDIDO, esPedido, estadoPedido, pedidosAbiertos, nuevoPedido, entregarPedido } from "../pedidos.js";
 
 // Reservas de hoy que todavía no llegaron
 export const reservasDeHoy = () => S.reservas
@@ -24,12 +24,9 @@ export function mount(root) {
       <div class="aviso-caja" id="sAviso"></div>
       <div class="res-hoy" id="sReservas"></div>
       <div class="listos" id="sListos"></div>
-      <div class="salon-top">
-        <div class="segmentado salon-vistas" id="sVistas">
-          <button data-vista="mesas">${icon("mesas")} Mesas <span class="contador" id="sCMesas"></span></button>
-          <button data-vista="pedidos">${icon("bolsa")} <span class="solo-ancho">Para llevar y delivery</span><span class="solo-angosto">Pedidos</span> <span class="contador" id="sCPed"></span></button>
-        </div>
-        ${puede("mesa") ? `<button class="btn btn-pri btn-rapida" data-act="rapida" title="Atajo de teclado: F2">${icon("flash")} Venta rápida <kbd>F2</kbd></button>` : ""}
+      <div class="segmentado salon-vistas" id="sVistas">
+        <button data-vista="mesas">${icon("mesas")} Mesas <span class="contador" id="sCMesas"></span></button>
+        <button data-vista="pedidos">${icon("bolsa")} <span class="solo-ancho">Para llevar y delivery</span><span class="solo-angosto">Pedidos</span> <span class="contador" id="sCPed"></span></button>
       </div>
       <div id="sVMesas">
         <div class="salon-cab">
@@ -230,7 +227,6 @@ export function mount(root) {
       const tipo = entregarPedido(b.dataset.cid);
       toast(`${nombre}: ${tipo === "delivery" ? "salió" : "entregado"}`);
     } else if (b.dataset.act === "pedido") nuevoPedido(b.dataset.tipo);
-    else if (b.dataset.act === "rapida") nuevaVentaRapida();
   });
 
   render();
