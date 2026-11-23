@@ -8,9 +8,9 @@ import { firmaHTML } from "./firma.js";
 import { $, esc, icon, toast, modal, confirmar, iniciales, fmt, normalizar } from "./util.js";
 import { reconectarImpresora } from "./print.js";
 import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
-import { nuevaVentaRapida } from "./pedidos.js";
+import { nuevaVentaRapida, rapidasLocales } from "./pedidos.js";
 
-const VERSION = "1.2.1";
+const VERSION = "1.2.2";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
@@ -369,13 +369,24 @@ function navegar() {
   $("#vista").replaceChildren(cont);
   $("#shell").classList.toggle("en-mesa", k === "mesa");
   $("#shell").classList.toggle("en-cocina", k === "cocina");
-  // En una comanda se marca Salón, o Venta rápida si es de mostrador
-  const marcada = k === "mesa" ? (S.comandas.find((c) => c.id === partes[1])?.tipo === "mostrador" ? "rapida" : "salon") : k;
-  appEl.querySelectorAll("[data-ruta]").forEach((a) => a.classList.toggle("activo", a.dataset.ruta === marcada));
-  appEl.querySelector(".nav-mas")?.classList.toggle("activo", masRutas.includes(marcada));
   $("#bsTitulo").textContent = RUTAS[k].titulo;
   window.scrollTo(0, 0);
-  actual = { key: k, inst: RUTAS[k].mod.mount(cont, { param: partes[1] ? decodeURIComponent(partes[1]) : null }) || {} };
+  actual = { key: k, param: partes[1] ? decodeURIComponent(partes[1]) : null, inst: null };
+  marcarMenu();
+  actual.inst = RUTAS[k].mod.mount(cont, { param: actual.param }) || {};
+}
+
+// Sección marcada en el menú. En una comanda: Venta rápida si es de mostrador, si no Salón.
+// Se vuelve a calcular cuando llegan las comandas (la venta recién creada tarda un instante).
+function marcarMenu() {
+  if (!actual) return;
+  let marcada = actual.key;
+  if (marcada === "mesa") {
+    const c = S.comandas.find((x) => x.id === actual.param);
+    marcada = rapidasLocales.has(actual.param) || c?.tipo === "mostrador" ? "rapida" : "salon";
+  }
+  appEl.querySelectorAll("[data-ruta]").forEach((a) => a.classList.toggle("activo", a.dataset.ruta === marcada));
+  appEl.querySelector(".nav-mas")?.classList.toggle("activo", masRutas.includes(marcada));
 }
 
 // Cambios en los datos → refrescar la vista actual (agrupados)
@@ -392,6 +403,7 @@ onStore((clave) => {
       if (b) b.textContent = S.config.nombre || "A&F";
     }
     try { actual?.inst?.update?.(claves); } catch (e) { console.error(e); }
+    if (claves.includes("comandas")) marcarMenu();
     actualizarBarra();
   }, 25);
 });

@@ -1,4 +1,4 @@
-# A&F — versión 1.2.1
+# A&F — versión 1.2.2
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 

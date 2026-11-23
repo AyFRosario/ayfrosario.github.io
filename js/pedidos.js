@@ -146,11 +146,15 @@ function itemEnvio(cid, tipo, etiqueta, hh, precio) {
 }
 
 // ── Venta rápida ──
+// Ventas rápidas abiertas desde este dispositivo: el menú las marca enseguida,
+// antes de que la base de datos devuelva la comanda nueva.
+export const rapidasLocales = new Set();
 // reemplazar: sin dejar un paso extra en el historial (el botón "atrás" vuelve a donde estaba)
 export function nuevaVentaRapida({ reemplazar = false } = {}) {
   if (!puede("mesa")) return;
   const cid = db.newId("comandas");
   const t = Date.now();
+  rapidasLocales.add(cid);
   db.set("comandas", cid, {
     tipo: "mostrador", mesaId: "", mesaNombre: etiquetaPedido("mostrador", {}, t), cliente: {}, hora: "",
     mozo: S.perfil.nombre, mozoUid: S.user.uid, comensales: 1, abierta: t, estado: "abierta", abiertaPor: S.perfil.nombre,
