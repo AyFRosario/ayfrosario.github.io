@@ -76,3 +76,6 @@ body { margin: 0; background: var(--papel); color: var(--tinta); font: 16px/1.45
 body.con-volver .carta { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
 
 .desc.op { font-size: 12.5px; color: #77787b; font-style: italic; }
+
+/* Flechas de la fila de categorías (PC): centradas en los botones, no en el espacio de arriba */
+.desliza-env > .cats ~ .desliza-flecha { margin-top: -11px; }

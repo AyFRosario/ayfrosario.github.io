@@ -495,17 +495,23 @@ function reordenarOps(nuevoOrden) {
 export function gestionarCategorias() {
   const m = modal({
     titulo: "Categorías",
-    cuerpo: `<p class="ayuda">El orden es el de la carta QR y el de la comanda de los mozos. Renombrar cambia todos los productos de la categoría.</p><div class="lista" id="gcL"></div>`,
+    cuerpo: `<p class="ayuda">El orden es el de la carta QR y el de la comanda de los mozos. Con ${icon("pin")} una categoría queda <b>siempre primera</b>, aunque se vuelva a importar el Excel. Renombrar cambia todos los productos de la categoría.</p><div class="lista" id="gcL"></div>`,
   });
   const cont = m.el.querySelector("#gcL");
   const pintar = () => {
     const cats = categorias();
+    const fija = S.config.catFija && cats.includes(S.config.catFija) ? S.config.catFija : null;
     cont.innerHTML = cats.map((c, k) => {
       const n = S.productos.filter((p) => (p.categoria || "Otros") === c).length;
-      return `<div class="fila-lista gc-fila"><div><b>${esc(c)}</b><small>${n} producto${n === 1 ? "" : "s"}</small></div>
+      const esFija = c === fija;
+      // La fijada no se mueve, y ninguna puede pasar por encima de ella
+      const subeNo = k === 0 || esFija || (fija && k === 1);
+      const bajaNo = k === cats.length - 1 || esFija;
+      return `<div class="fila-lista gc-fila ${esFija ? "fija" : ""}"><div><b>${esc(c)}</b><small>${n} producto${n === 1 ? "" : "s"}${esFija ? " · siempre primera" : ""}</small></div>
         <div class="gc-acc">
-          <button class="btn-icono" data-sube="${k}" ${k === 0 ? "disabled" : ""} aria-label="Subir">${icon("arriba")}</button>
-          <button class="btn-icono" data-baja="${k}" ${k === cats.length - 1 ? "disabled" : ""} aria-label="Bajar">${icon("abajo")}</button>
+          <button class="btn-icono gc-pin ${esFija ? "activo" : ""}" data-fija="${k}" aria-pressed="${esFija}" aria-label="${esFija ? "Dejar de fijar" : "Fijar primera"}" title="${esFija ? "Dejar de fijar" : "Fijar siempre primera"}">${icon("pin")}</button>
+          <button class="btn-icono" data-sube="${k}" ${subeNo ? "disabled" : ""} aria-label="Subir">${icon("arriba")}</button>
+          <button class="btn-icono" data-baja="${k}" ${bajaNo ? "disabled" : ""} aria-label="Bajar">${icon("abajo")}</button>
           <button class="btn-icono" data-ren="${k}" aria-label="Renombrar">${icon("nota")}</button>
         </div></div>`;
     }).join("") || `<p class="ayuda">Todavía no hay productos.</p>`;
@@ -513,6 +519,18 @@ export function gestionarCategorias() {
   cont.addEventListener("click", async (e) => {
     const cats = categorias();
     const sube = e.target.closest("[data-sube]"), baja = e.target.closest("[data-baja]"), ren = e.target.closest("[data-ren]");
+    const fijar = e.target.closest("[data-fija]");
+    if (fijar) {
+      const c = cats[Number(fijar.dataset.fija)];
+      const yaFija = S.config.catFija === c;
+      db.merge("config", "general", { catFija: yaFija ? null : c });
+      // También se reordenan los productos, así el orden guardado coincide
+      if (!yaFija) { const ops = reordenarOps([c, ...cats.filter((x) => x !== c)]); if (ops.length) db.batch(ops); }
+      log("productos", yaFija ? `Categoría "${c}" ya no está fija` : `Categoría "${c}" fija primera`);
+      toast(yaFija ? `"${c}" ya no está fija` : `"${c}" queda siempre primera`);
+      setTimeout(pintar, 60);
+      return;
+    }
     if (sube || baja) {
       const k = Number((sube || baja).dataset[sube ? "sube" : "baja"]);
       const j = sube ? k - 1 : k + 1;
@@ -541,6 +559,7 @@ export function gestionarCategorias() {
 
 export function renombrarCategoria(viejo, nuevo) {
   const ops = S.productos.filter((p) => (p.categoria || "Otros") === viejo).map((p) => ({ op: "update", col: "productos", id: p.id, data: { categoria: nuevo } }));
+  if (S.config.catFija === viejo) db.merge("config", "general", { catFija: nuevo }); // la fijada sigue fija con el nombre nuevo
   for (let i = 0; i < ops.length; i += 400) db.batch(ops.slice(i, i + 400));
   if (ops.length) log("productos", `Categoría "${viejo}" → "${nuevo}" (${ops.length} productos)`);
   return ops.length;

@@ -7,6 +7,7 @@
 import { CONFIG } from "./config.js";
 import { buscar } from "./buscar.js";
 import { firmaHTML, contactoHTML } from "./firma.js";
+import { activarDeslizables } from "./desliza.js";
 
 const params = new URLSearchParams(location.search);
 const DEMO = !CONFIG.firebase || params.has("demo");
@@ -230,4 +231,5 @@ async function iniciar() {
   document.title = `Carta · ${carta?.nombre || "A&F"}`;
 }
 
+activarDeslizables(".cats");
 iniciar();

@@ -1,4 +1,4 @@
-# A&F — versión 1.2.4
+# A&F — versión 1.2.5
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -315,6 +315,17 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
 - **"¿En qué se va la plata?"** muestra las barras por categoría, con la mercadería y los gastos de caja incluidos.
 - **Quién lo ve:** solo el dueño y el administrador, porque incluye sueldos. El encargado no lo ve, y el respaldo que él descarga no trae la hoja de gastos fijos.
 - **Reglas de Firebase:** esta versión agrega la colección `gastos`. Hay que volver a pegar `firestore.rules` y publicarlas.
+
+## 3 terdecies. Etiquetas en la PC y categoría fija (v1.2.5)
+
+- **Filas de etiquetas en la PC** (categorías de la comanda y de Productos, sectores del Salón, períodos de Reportes y categorías de la carta QR):
+  - Se mueven con la rueda del mouse o arrastrando.
+  - Cuando hay más etiquetas para un costado, aparece una flecha ‹ › en ese borde.
+  - En el celular siguen deslizándose con el dedo, sin flechas.
+- **Categoría fija:**
+  - En **Productos → Categorías**, el botón del pin deja una categoría **siempre primera**: en la comanda (después de Todas), en Productos y en la carta QR. Queda primera aunque se vuelva a importar el Excel.
+  - Se puede fijar una sola. Tocando el pin de nuevo se suelta. Si se renombra, sigue fija.
+  - Al actualizar a esta versión, **Menús** queda fija sola.
 
 ## 4. Escáner de códigos
 

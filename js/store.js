@@ -174,7 +174,11 @@ export function categorias() {
     const o = Number(p.orden) || 0;
     if (!orden.has(c) || o < orden.get(c)) orden.set(c, o);
   }
-  return [...orden.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map((x) => x[0]);
+  const lista = [...orden.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map((x) => x[0]);
+  // Una categoría fijada (Productos → Categorías) va siempre primera: en la comanda,
+  // en Productos y en la carta QR, aunque se vuelva a importar el Excel.
+  const fija = S.config?.catFija;
+  return fija && lista.includes(fija) ? [fija, ...lista.filter((c) => c !== fija)] : lista;
 }
 
 export function sectoresMesas() {

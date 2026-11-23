@@ -9,8 +9,9 @@ import { $, esc, icon, toast, modal, confirmar, iniciales, fmt, normalizar } fro
 import { reconectarImpresora } from "./print.js";
 import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
 import { nuevaVentaRapida, rapidasLocales } from "./pedidos.js";
+import { activarDeslizables } from "./desliza.js";
 
-const VERSION = "1.2.4";
+const VERSION = "1.2.5";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
@@ -93,6 +94,8 @@ async function arrancar() {
   window.addEventListener("online", actualizarBarra);
   window.addEventListener("offline", actualizarBarra);
   window.addEventListener("hashchange", navegar);
+  // Filas de etiquetas: en la PC se deslizan con la rueda, arrastrando o con flechas
+  activarDeslizables(".chips.desliza");
   // F2: venta rápida desde cualquier pantalla (PC del mostrador)
   document.addEventListener("keydown", (e) => {
     if (e.key !== "F2" || !iniciada || !S.rol || !puede("mesa") || document.querySelector(".modal-fondo, .escaner")) return;
@@ -143,6 +146,11 @@ function migraciones() {
     // v0.7: la categoría "Menúes" pasa a llamarse "Menús"
     for (const c of categorias()) if (normalizar(c) === "menues") vProductos.renombrarCategoria(c, "Menús");
     db.merge("config", "general", { migMenus: true });
+  }
+  if (!S.config.migCatFija) {
+    // v1.2.5: "Menús" queda fija primera (comanda: después de Todas; carta QR: primera)
+    const menus = categorias().find((c) => ["menus", "menues"].includes(normalizar(c)));
+    db.merge("config", "general", { migCatFija: true, ...(menus && !S.config.catFija ? { catFija: "Menús" } : {}) });
   }
 }
 
