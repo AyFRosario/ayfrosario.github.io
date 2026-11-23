@@ -1,4 +1,4 @@
-# A&F — versión 1.2.3
+# A&F — versión 1.2.4
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -239,7 +239,7 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
 - **WhatsApp al cliente:** el ícono de WhatsApp de la comanda tiene mensajes listos: "pedido recibido" con el detalle y el total, "está listo para retirar" y "va en camino".
 - **Ticket para el envío:** en el delivery, la precuenta sale con nombre, teléfono, dirección, hora y nota.
 - **Venta rápida:**
-  - **Siempre a mano (v1.2):** es lo primero del menú, arriba de Salón; en el celular, el primer botón de la barra de abajo. La app igual abre en Salón. En la PC también está la tecla **F2** (el menú lo recuerda al lado de "Venta rápida"), que la abre desde cualquier pantalla. Si hay una ventana abierta, F2 no hace nada.
+  - **Siempre a mano (v1.2):** es lo primero del menú, arriba de Salón; en el celular, el primer botón de la barra de abajo. La app igual abre en Salón. En el celular y la tablet, la barra de abajo se ve también adentro de la venta, de las mesas y de los pedidos (v1.2.4), así se cambia de sección sin volver. En la PC también está la tecla **F2** (el menú lo recuerda al lado de "Venta rápida"), que la abre desde cualquier pantalla. Si hay una ventana abierta, F2 no hace nada.
   - Para el mostrador, sin datos del cliente. Arranca en ★ Favoritos y se cobra directo; lo que es de barra o cocina se envía solo.
   - Al terminar, el botón **Otra venta rápida** abre la siguiente.
   - Si se sale sin cargar nada, no queda abierta.

@@ -142,10 +142,13 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .nav-inferior a.activo { color: var(--tinta); }
 .nav-inferior a span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
-/* En la comanda (celular) se esconden barra y menú: la pantalla es para cargar */
-.shell.en-mesa { grid-template-rows: 0 1fr 0; }
-.shell.en-mesa .barra-sup, .shell.en-mesa .nav-inferior { display: none; }
+/* En la comanda (celular y tablet) se esconde la barra de arriba: la comanda tiene la suya.
+   La barra de abajo queda, para ir a otra sección sin tener que volver (v1.2.4). */
+.shell.en-mesa { grid-template-rows: 0 1fr calc(var(--nav) + var(--abajo)); }
+.shell.en-mesa .barra-sup { display: none; }
 .shell.en-mesa .vista { padding: 0; max-width: none; }
+.shell.en-mesa .comanda { height: calc(100dvh - var(--nav) - var(--abajo)); }
+.shell.en-mesa .comanda-pie { padding-bottom: 10px; }
 
 /* Cocina: compacto y oscuro */
 .shell.compacto { grid-template-rows: var(--top) 1fr; }
@@ -177,6 +180,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
   .barra-sup .avatar.boton { display: none; }
   .shell.en-mesa { grid-template-rows: var(--top) 1fr; }
   .shell.en-mesa .barra-sup { display: flex; }
+  .shell.en-mesa .comanda { height: calc(100dvh - var(--top)); }
   .vista { padding: 22px; }
   .btn-icono-txt span { display: inline; }
   .shell.compacto { grid-template-columns: minmax(0, 1fr); }

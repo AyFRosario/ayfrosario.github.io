@@ -10,7 +10,7 @@ import { reconectarImpresora } from "./print.js";
 import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
 import { nuevaVentaRapida, rapidasLocales } from "./pedidos.js";
 
-const VERSION = "1.2.3";
+const VERSION = "1.2.4";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
