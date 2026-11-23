@@ -10,7 +10,7 @@ import { reconectarImpresora } from "./print.js";
 import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
 import { nuevaVentaRapida } from "./pedidos.js";
 
-const VERSION = "1.2.0";
+const VERSION = "1.2.1";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
@@ -29,9 +29,10 @@ import * as vRecordatorios from "./vistas/recordatorios.js";
 // Es el mismo en la PC (menú de la izquierda) y en el celular (barra de abajo:
 // las primeras 4 y el resto en "Más").
 const RUTAS = {
-  salon: { mod: vSalon, perm: "salon", titulo: "Salón", icono: "mesas", menu: true, grupo: "Servicio" },
-  // Venta rápida (mostrador): no es una pantalla, abre una venta nueva desde cualquier lado
+  // Venta rápida (mostrador): primera del menú. No es una pantalla: abre una venta nueva desde cualquier lado.
+  // La app igual abre en Salón (ver rutaInicio), así no se crea una venta cada vez que se entra.
   rapida: { mod: { mount() {} }, perm: "mesa", titulo: "Venta rápida", icono: "flash", menu: true, grupo: "Servicio", accion: () => nuevaVentaRapida({ reemplazar: true }) },
+  salon: { mod: vSalon, perm: "salon", titulo: "Salón", icono: "mesas", menu: true, grupo: "Servicio" },
   caja: { mod: vCaja, perm: "caja", titulo: "Caja", icono: "caja", menu: true, grupo: "Servicio" },
   reservas: { mod: vReservas, perm: "reservas", titulo: "Reservas", icono: "calendario", menu: true, grupo: "Servicio" },
   cocina: { mod: vCocina, perm: "cocina", titulo: "Cocina y barra", icono: "cocina", menu: true, grupo: "Servicio" },
