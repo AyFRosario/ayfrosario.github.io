@@ -146,7 +146,8 @@ function itemEnvio(cid, tipo, etiqueta, hh, precio) {
 }
 
 // ── Venta rápida ──
-export function nuevaVentaRapida() {
+// reemplazar: sin dejar un paso extra en el historial (el botón "atrás" vuelve a donde estaba)
+export function nuevaVentaRapida({ reemplazar = false } = {}) {
   if (!puede("mesa")) return;
   const cid = db.newId("comandas");
   const t = Date.now();
@@ -154,7 +155,8 @@ export function nuevaVentaRapida() {
     tipo: "mostrador", mesaId: "", mesaNombre: etiquetaPedido("mostrador", {}, t), cliente: {}, hora: "",
     mozo: S.perfil.nombre, mozoUid: S.user.uid, comensales: 1, abierta: t, estado: "abierta", abiertaPor: S.perfil.nombre,
   });
-  location.hash = "#/mesa/" + cid;
+  if (reemplazar) location.replace("#/mesa/" + cid);
+  else location.hash = "#/mesa/" + cid;
 }
 
 // Si se sale de una venta rápida sin cargar nada, no queda abierta

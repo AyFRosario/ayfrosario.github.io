@@ -8,8 +8,9 @@ import { firmaHTML } from "./firma.js";
 import { $, esc, icon, toast, modal, confirmar, iniciales, fmt, normalizar } from "./util.js";
 import { reconectarImpresora } from "./print.js";
 import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
+import { nuevaVentaRapida } from "./pedidos.js";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
@@ -29,6 +30,8 @@ import * as vRecordatorios from "./vistas/recordatorios.js";
 // las primeras 4 y el resto en "Más").
 const RUTAS = {
   salon: { mod: vSalon, perm: "salon", titulo: "Salón", icono: "mesas", menu: true, grupo: "Servicio" },
+  // Venta rápida (mostrador): no es una pantalla, abre una venta nueva desde cualquier lado
+  rapida: { mod: { mount() {} }, perm: "mesa", titulo: "Venta rápida", icono: "flash", menu: true, grupo: "Servicio", accion: () => nuevaVentaRapida({ reemplazar: true }) },
   caja: { mod: vCaja, perm: "caja", titulo: "Caja", icono: "caja", menu: true, grupo: "Servicio" },
   reservas: { mod: vReservas, perm: "reservas", titulo: "Reservas", icono: "calendario", menu: true, grupo: "Servicio" },
   cocina: { mod: vCocina, perm: "cocina", titulo: "Cocina y barra", icono: "cocina", menu: true, grupo: "Servicio" },
@@ -89,6 +92,12 @@ async function arrancar() {
   window.addEventListener("online", actualizarBarra);
   window.addEventListener("offline", actualizarBarra);
   window.addEventListener("hashchange", navegar);
+  // F2: venta rápida desde cualquier pantalla (PC del mostrador)
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "F2" || !iniciada || !S.rol || !puede("mesa") || document.querySelector(".modal-fondo, .escaner")) return;
+    e.preventDefault();
+    nuevaVentaRapida();
+  });
   auth.onUser(alCambiarUsuario);
 }
 
@@ -352,14 +361,17 @@ function navegar() {
   const clave = partes[0];
   let k = RUTAS[clave] && puede(RUTAS[clave].perm) ? clave : rutaInicio();
   if (k !== clave) { location.replace("#/" + k); return; }
+  if (RUTAS[k].accion) { RUTAS[k].accion(); return; }
   actual?.inst?.unmount?.();
   const cont = document.createElement("div");
   cont.className = "vista vista-" + k;
   $("#vista").replaceChildren(cont);
   $("#shell").classList.toggle("en-mesa", k === "mesa");
   $("#shell").classList.toggle("en-cocina", k === "cocina");
-  appEl.querySelectorAll("[data-ruta]").forEach((a) => a.classList.toggle("activo", a.dataset.ruta === k));
-  appEl.querySelector(".nav-mas")?.classList.toggle("activo", masRutas.includes(k));
+  // En una comanda se marca Salón, o Venta rápida si es de mostrador
+  const marcada = k === "mesa" ? (S.comandas.find((c) => c.id === partes[1])?.tipo === "mostrador" ? "rapida" : "salon") : k;
+  appEl.querySelectorAll("[data-ruta]").forEach((a) => a.classList.toggle("activo", a.dataset.ruta === marcada));
+  appEl.querySelector(".nav-mas")?.classList.toggle("activo", masRutas.includes(marcada));
   $("#bsTitulo").textContent = RUTAS[k].titulo;
   window.scrollTo(0, 0);
   actual = { key: k, inst: RUTAS[k].mod.mount(cont, { param: partes[1] ? decodeURIComponent(partes[1]) : null }) || {} };

@@ -24,9 +24,12 @@ export function mount(root) {
       <div class="aviso-caja" id="sAviso"></div>
       <div class="res-hoy" id="sReservas"></div>
       <div class="listos" id="sListos"></div>
-      <div class="segmentado salon-vistas" id="sVistas">
-        <button data-vista="mesas">${icon("mesas")} Mesas <span class="contador" id="sCMesas"></span></button>
-        <button data-vista="pedidos">${icon("bolsa")} <span class="solo-ancho">Para llevar y delivery</span><span class="solo-angosto">Pedidos</span> <span class="contador" id="sCPed"></span></button>
+      <div class="salon-top">
+        <div class="segmentado salon-vistas" id="sVistas">
+          <button data-vista="mesas">${icon("mesas")} Mesas <span class="contador" id="sCMesas"></span></button>
+          <button data-vista="pedidos">${icon("bolsa")} <span class="solo-ancho">Para llevar y delivery</span><span class="solo-angosto">Pedidos</span> <span class="contador" id="sCPed"></span></button>
+        </div>
+        ${puede("mesa") ? `<button class="btn btn-pri btn-rapida" data-act="rapida" title="Atajo de teclado: F2">${icon("flash")} Venta rápida <kbd>F2</kbd></button>` : ""}
       </div>
       <div id="sVMesas">
         <div class="salon-cab">
@@ -39,7 +42,6 @@ export function mount(root) {
         ${puede("mesa") ? `<div class="ped-botones">
           <button class="btn btn-pri" data-act="pedido" data-tipo="llevar">${icon("bolsa")} Para llevar</button>
           <button class="btn btn-pri" data-act="pedido" data-tipo="delivery">${icon("moto")} Delivery</button>
-          <button class="btn" data-act="rapida">${icon("flash")} Venta rápida</button>
         </div>` : ""}
         <div id="sPedidos"></div>
       </div>
