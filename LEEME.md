@@ -1,4 +1,4 @@
-# A&F — versión 1.2.8
+# A&F — versión 1.3.0
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -340,6 +340,31 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
   - Las del medio no pasan por encima de la fija ni entre las del final.
   - Las del final se ordenan solo entre ellas.
 - **Cambiar un producto de categoría** (o cargar uno nuevo) lo pone último dentro de su categoría. Antes un producto con número de orden bajo podía arrastrar toda su categoría hacia arriba (por eso Bebidas sin alcohol aparecía segunda).
+
+## 3 quindecies. Pedidos por la carta: delivery y para retirar (v1.3)
+
+Primera etapa: el pedido llega por **WhatsApp**. No se guarda solo en el sistema: el bar lo confirma por WhatsApp y lo carga en **Salón → Pedidos**.
+
+- **Dónde se activa:** **Ajustes → Pedidos por la carta**.
+  - **Recibir pedidos desde la carta QR**, y cómo se entregan: **Delivery**, **Retiro en el local** o los dos.
+  - **Zona de envío** (opcional): el cliente la ve antes de pedir.
+  - **Alias para transferencias** (opcional): el cliente lo ve si elige transferencia o Mercado Pago.
+  - **Envío (precio fijo):** se suma a los delivery de la carta y se propone al cargar un delivery a mano (antes estaba en Negocio).
+  - **Cadete o cadetería:** nombre y WhatsApp. Puede ser un cadete propio, uno del barrio o una cadetería.
+  - Los pedidos llegan al **WhatsApp del bar** (Negocio).
+- **En la carta:**
+  - Aparece **Pedir delivery o para llevar** (o "Pedir delivery" / "Pedir para retirar", según lo activado). Los botones **+** aparecen recién al tocarlo, así la gente en las mesas ve la carta como siempre.
+  - Abajo queda la barra **Ver pedido** con la cantidad y el total. Ahí se cambian cantidades y se pone una aclaración por producto (por ejemplo, la guarnición).
+  - El cliente elige delivery o retiro, pone nombre y dirección, la hora (opcional) y el pago: efectivo (con cuánto paga, para el vuelto) o transferencia / Mercado Pago (ve el alias).
+  - Ve el subtotal, el envío y el total, y **Enviar pedido por WhatsApp** arma el mensaje completo.
+  - El pedido queda guardado en el teléfono hasta mandarlo (12 horas). La próxima vez se acuerda del nombre y la dirección.
+  - Lo agotado no tiene **+** y sale del pedido. Con mesa en la dirección (QR viejos por mesa) no se ofrece pedir.
+- **Enlace para pedir** (`carta.html?pedir`): abre la carta lista para pedir. Está en **Ajustes → Carta QR**, con **Copiar**, y entra en **Mensaje para compartir**.
+- **En A&F, en cada delivery:**
+  - **⋯ → Avisar al cadete** manda por WhatsApp de dónde retirar, a quién entregar, la dirección, la hora, la nota y **cuánto cobrar** (con el envío).
+  - En los datos del pedido se marca **Pago: Ya pagó**, y entonces el mensaje dice "no cobrar".
+  - Sin número de cadete cargado, WhatsApp deja elegir el contacto.
+- **Lo que sigue (etapa 2, si funciona bien):** que el pedido entre directo en A&F como "Pedido web", con aviso sonoro, para aceptarlo o rechazarlo sin cargarlo a mano.
 
 ## 4. Escáner de códigos
 

@@ -8,7 +8,7 @@ import { buscar } from "../buscar.js";
 import { abrirEscaner, escucharLectorUSB, precargarEscaner } from "../scanner.js";
 import { imprimir, ticketComanda, ticketPrecuenta } from "../print.js";
 import { abrirCobro } from "./cobro.js";
-import { TIPOS_PEDIDO, esPedido, editarPedido, whatsappPedido, entregarPedido, descartarSiVacia } from "../pedidos.js";
+import { TIPOS_PEDIDO, esPedido, editarPedido, whatsappPedido, avisarCadete, entregarPedido, descartarSiVacia } from "../pedidos.js";
 import { iconoContacto } from "../firma.js";
 import { gruposDe, elegirOpciones } from "../opciones.js";
 
@@ -68,7 +68,7 @@ export function mount(root, { param: cid }) {
       <a href="#/salon" class="btn-icono" aria-label="Volver al salón">${icon("atras")}</a>
       <div class="cc-titulo">
         <h2><span class="pill ped-pill">${icon(tp.icono)} ${tp.t}</span> ${esc(c.tipo === "mostrador" ? c.mesaNombre : cli.nombre || c.mesaNombre)}</h2>
-        <small>${c.hora ? `${icon("reloj")} ${c.tipo === "delivery" ? "Entrega" : "Retira"} ${esc(c.hora)} · ` : ""}${cli.telefono ? `${esc(cli.telefono)} · ` : ""}${cli.direccion ? `${esc(cli.direccion)} · ` : ""}${cli.nota ? `${esc(cli.nota)} · ` : ""}${durTxt(c.abierta)}</small>
+        <small>${c.hora ? `${icon("reloj")} ${c.tipo === "delivery" ? "Entrega" : "Retira"} ${esc(c.hora)} · ` : ""}${cli.telefono ? `${esc(cli.telefono)} · ` : ""}${cli.direccion ? `${esc(cli.direccion)} · ` : ""}${cli.nota ? `${esc(cli.nota)} · ` : ""}${cli.pago === "pagado" ? "Ya pagó · " : ""}${durTxt(c.abierta)}</small>
       </div>
       ${c.tipo !== "mostrador" ? `<button class="btn-icono" data-act="datos" aria-label="Datos del pedido">${icon("nota")}</button>` : ""}
       ${cli.telefono ? `<button class="btn-icono wa" data-act="wa" aria-label="WhatsApp al cliente">${iconoContacto("whatsapp", 22)}</button>` : ""}
@@ -254,6 +254,7 @@ export function mount(root, { param: cid }) {
       cuerpo: `<div class="menu-lista">
         ${ped && c.tipo !== "mostrador" ? `<button data-m="datos">${icon("nota")} Datos del pedido</button>` : ""}
         ${ped && c.cliente?.telefono ? `<button data-m="wa">${iconoContacto("whatsapp", 18)} WhatsApp al cliente</button>` : ""}
+        ${c.tipo === "delivery" ? `<button data-m="cadete">${icon("moto")} Avisar al cadete${S.config.cadeteNombre ? ` (${esc(S.config.cadeteNombre)})` : ""}</button>` : ""}
         <button data-m="precuenta">${icon("print")} ${c.tipo === "delivery" ? "Imprimir ticket para el envío" : "Imprimir precuenta"}</button>
         ${ped ? "" : `<button data-m="cuenta">${icon("recibo")} ${c.estado === "cuenta" ? 'Quitar "pidió la cuenta"' : "Marcar: pidió la cuenta"}</button>`}
         ${puede("cobrar") && vigentes(its).length ? `<button data-m="cobrar">${icon("dinero")} Cobrar</button>` : ""}
@@ -270,6 +271,7 @@ export function mount(root, { param: cid }) {
       const a = b.dataset.m;
       if (a === "datos") editarPedido(c);
       else if (a === "wa") whatsappPedido(c);
+      else if (a === "cadete") avisarCadete(c);
       else if (a === "precuenta") precuenta();
       else if (a === "cuenta") marcarCuenta();
       else if (a === "cobrar") abrirCobro(cid);

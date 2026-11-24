@@ -94,14 +94,19 @@ let reservaAbierta = false;
 let cerrarDirecta = null;
 function render() {
   const c = carta;
-  const mesa = params.get("m") ? c.mesas?.[params.get("m")] : "";
+  const mesa = mesaActual();
   const conDatos = c.cats.reduce((s, x) => s + x.p.length, 0);
+  const ped = !mesa && pedidosOn() && conDatos;
+  const res = !mesa && c.reservas !== false && waLink(c);
   raiz.innerHTML = `
     <header class="cab">
       <img src="img/logo.svg" alt="${esc(c.nombre)}" class="logo" width="620" height="460">
       ${c.lema ? `<p class="lema">${esc(c.lema)}</p>` : ""}
       ${mesa ? `<p class="mesa">${esc(mesa)}</p>` : ""}
-      ${!mesa && c.reservas !== false && waLink(c) ? `<p><button class="btn-reservar" id="btnRes">Reservar mesa</button></p>` : ""}
+      ${ped || res ? `<div class="acciones">
+        ${ped ? `<button class="btn-reservar" id="btnPed">${esc(textoPedir())}</button>` : ""}
+        ${res ? `<button class="btn-reservar ${ped ? "sec" : ""}" id="btnRes">Reservar mesa</button>` : ""}</div>` : ""}
+      ${ped && pidiendo ? `<p class="ped-ayuda" id="pedAyuda">Tocá <b>+</b> en lo que quieras y después <b>Ver pedido</b>, abajo.</p>` : ""}
     </header>
     ${conDatos ? `
     <div class="barra">
@@ -115,6 +120,11 @@ function render() {
       ${firmaHTML()}
     </footer>`;
   document.getElementById("btnRes")?.addEventListener("click", () => abrirReserva());
+  document.getElementById("btnPed")?.addEventListener("click", () => {
+    if (!pidiendo) { pidiendo = true; render(); document.getElementById("pedAyuda")?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+    if (lineas().length) abrirPedido();
+    else document.getElementById("lista")?.scrollIntoView({ behavior: "smooth" });
+  });
   // Enlace para reservar: el formulario se abre solo, una vez (la carta se vuelve a dibujar al actualizarse)
   if (params.has("reservar") && !reservaAbierta && document.getElementById("btnRes")) {
     reservaAbierta = true;
@@ -122,6 +132,7 @@ function render() {
   }
   // Se abrió con la carta guardada en el teléfono y la recién bajada ya no tiene reservas: se cierra
   if (cerrarDirecta && !document.getElementById("btnRes")) cerrarDirecta();
+  pintarBarra();
   if (!conDatos) return;
   renderLista();
   const busq = document.getElementById("busq");
@@ -149,11 +160,207 @@ function renderLista() {
 }
 
 function item(p) {
-  return `<article class="item ${p.a ? "agotado" : ""}">
-    <div class="item-linea"><h3>${esc(p.n)}</h3><span class="puntos"></span><span class="precio">${p.a ? "Agotado" : precio(p.p)}</span></div>
+  return `<article class="item ${p.a ? "agotado" : ""}" data-n="${esc(p.n)}">
+    <div class="item-linea"><h3>${esc(p.n)}</h3><span class="puntos"></span><span class="precio">${p.a ? "Agotado" : precio(p.p)}</span>${pidiendo && !p.a && pedidosOn() ? `<span class="ped-ctrl">${ctrlHTML(p.n)}</span>` : ""}</div>
     ${p.d ? `<p class="desc">${esc(p.d)}</p>` : ""}
     ${p.o ? `<p class="desc op">${esc(p.o)}</p>` : ""}
   </article>`;
+}
+
+// ── Pedidos por WhatsApp: delivery o para retirar ──
+// El cliente arma el pedido en la carta y lo manda por WhatsApp con el
+// detalle, el envío y el total. No se guarda nada en el sistema: el bar lo
+// confirma por WhatsApp y lo carga. El pedido queda en el teléfono hasta
+// enviarlo (12 horas), y los datos del cliente para la próxima vez.
+const PEDIDO = "af_pedido";
+const CLIENTE = "af_cliente";
+let pidiendo = params.has("pedir");
+let pedido = leerPedido(); // [{ n: nombre del producto, cant, nota }]
+
+function leerPedido() {
+  try {
+    const x = JSON.parse(localStorage.getItem(PEDIDO) || "null");
+    if (x && Date.now() - x.ts < 12 * 3600e3 && Array.isArray(x.items)) return x.items;
+  } catch {}
+  return [];
+}
+function guardarPedido() { try { localStorage.setItem(PEDIDO, JSON.stringify({ ts: Date.now(), items: pedido })); } catch {} }
+function leerCliente() { try { return JSON.parse(localStorage.getItem(CLIENTE) || "{}") || {}; } catch { return {}; } }
+
+function mesaActual() { return params.get("m") ? carta?.mesas?.[params.get("m")] || "" : ""; }
+const pedidosOn = () => !!(carta?.pedidos && (carta.pedidos.d || carta.pedidos.r) && waLink(carta) && !mesaActual());
+const textoPedir = () => { const x = carta.pedidos; return x.d && x.r ? "Pedir delivery o para llevar" : x.d ? "Pedir delivery" : "Pedir para retirar"; };
+
+function producto(n) {
+  for (const c of carta.cats) for (const p of c.p) if (p.n === n) return p;
+  return null;
+}
+// Las líneas que se pueden pedir, con el precio de la carta de ahora (las agotadas o borradas no)
+const lineas = () => pedido.map((l) => ({ ...l, p: producto(l.n) })).filter((l) => l.p && !l.p.a && l.cant > 0);
+const cantDe = (n) => pedido.find((l) => l.n === n)?.cant || 0;
+const subtotal = () => lineas().reduce((s, l) => s + l.p.p * l.cant, 0);
+
+function ctrlHTML(n) {
+  const k = cantDe(n);
+  return k
+    ? `<span class="cant-ctrl"><button type="button" data-menos="${esc(n)}" aria-label="Sacar uno">−</button><b>${k}</b><button type="button" data-mas="${esc(n)}" aria-label="Sumar uno">+</button></span>`
+    : `<button type="button" class="btn-mas" data-mas="${esc(n)}" aria-label="Agregar ${esc(n)}">+</button>`;
+}
+
+function cambiar(n, d) {
+  const l = pedido.find((x) => x.n === n);
+  if (l) l.cant = Math.max(0, l.cant + d);
+  else if (d > 0) pedido.push({ n, cant: d, nota: "" });
+  pedido = pedido.filter((x) => x.cant > 0);
+  guardarPedido();
+  // Solo se redibujan los botones de ese producto (así no se mueve la página)
+  document.querySelectorAll(".item[data-n]").forEach((a) => { if (a.dataset.n === n) { const c = a.querySelector(".ped-ctrl"); if (c) c.innerHTML = ctrlHTML(n); } });
+  pintarBarra();
+}
+
+const barra = document.createElement("div");
+barra.className = "barra-pedido";
+barra.hidden = true;
+barra.innerHTML = `<button type="button" id="verPed"><span class="bp-cant"></span><span class="bp-txt">Ver pedido</span><b class="bp-total"></b></button>`;
+document.body.appendChild(barra);
+barra.addEventListener("click", () => abrirPedido());
+
+function pintarBarra() {
+  const ls = pidiendo && pedidosOn() ? lineas() : [];
+  barra.hidden = !ls.length;
+  document.body.classList.toggle("con-pedido", !!ls.length);
+  if (!ls.length) return;
+  const n = ls.reduce((s, l) => s + l.cant, 0);
+  barra.querySelector(".bp-cant").textContent = n;
+  barra.querySelector(".bp-total").textContent = precio(subtotal());
+}
+
+raiz.addEventListener("click", (e) => {
+  const mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
+  if (mas) cambiar(mas.dataset.mas, 1);
+  else if (menos) cambiar(menos.dataset.menos, -1);
+});
+
+function abrirPedido() {
+  if (!pedidosOn()) return;
+  const cfg = carta.pedidos;
+  const cli = leerCliente();
+  let tipo = cfg.d && cfg.r ? (cli.tipo === "retiro" ? "retiro" : "delivery") : cfg.d ? "delivery" : "retiro";
+  let pago = cli.pago === "transf" ? "transf" : "efectivo";
+  let ultimo = "";
+  const fondo = document.createElement("div");
+  fondo.className = "hoja-fondo";
+  fondo.innerHTML = `<form class="hoja larga" role="dialog" aria-modal="true" aria-label="Tu pedido" novalidate>
+    <h2>Tu pedido</h2>
+    <div class="lineas" id="pLineas"></div>
+    ${cfg.d && cfg.r ? `<div class="seg" id="pTipo"><button type="button" data-t="delivery">Delivery${cfg.envio ? ` (+ ${precio(cfg.envio)})` : ""}</button><button type="button" data-t="retiro">Retiro en el local</button></div>`
+      : `<p class="ped-tipo">${cfg.d ? `Delivery${cfg.envio ? ` · envío ${precio(cfg.envio)}` : ""}` : `Para retirar en el local${carta.direccion ? `: ${esc(carta.direccion)}` : ""}`}</p>`}
+    <label>Nombre<input name="nombre" required autocomplete="name" value="${esc(cli.nombre || "")}"></label>
+    <div class="grupo" id="pDel">
+      <label>Dirección<input name="dir" autocomplete="street-address" placeholder="Calle y número" value="${esc(cli.dir || "")}"></label>
+      <label>Piso, depto o entre calles (opcional)<input name="ref" value="${esc(cli.ref || "")}"></label>
+      ${cfg.zona ? `<p class="nota zona">Zona de envío: ${esc(cfg.zona)}</p>` : ""}
+    </div>
+    <p class="nota zona" id="pRet">${carta.direccion ? `Retirás en ${esc(carta.direccion)}.` : ""}</p>
+    <label>Hora (opcional; si no, lo antes posible)<input name="hora" type="time"></label>
+    <div class="grupo"><span class="lbl">Pago</span>
+      <div class="seg" id="pPago"><button type="button" data-p="efectivo">Efectivo</button><button type="button" data-p="transf">Transferencia o Mercado Pago</button></div></div>
+    <label id="pCon">¿Con cuánto pagás? (opcional, para el vuelto)<input name="con" inputmode="numeric" placeholder="$"></label>
+    <p class="nota alias" id="pAlias">${cfg.alias ? `Alias: <b>${esc(cfg.alias)}</b>. ` : ""}Cuando el bar te confirme, mandá el comprobante por WhatsApp.</p>
+    <label>Comentario (opcional)<input name="nota" placeholder="Sin sal, tocar timbre B…"></label>
+    <div class="totales" id="pTot"></div>
+    <button class="btn-wa" id="pEnviar">Enviar pedido por WhatsApp</button>
+    <button type="button" class="btn-sec" data-cerrar>Seguir mirando la carta</button>
+    <p class="nota">El bar te confirma el pedido y el horario por WhatsApp.</p>
+  </form>`;
+  document.body.appendChild(fondo);
+  document.body.classList.add("con-hoja");
+  const f = fondo.querySelector("form");
+  const $ = (s) => f.querySelector(s);
+  const cerrar = () => { fondo.remove(); document.body.classList.remove("con-hoja"); };
+  fondo.addEventListener("click", (e) => { if (e.target === fondo || e.target.closest("[data-cerrar]")) cerrar(); });
+
+  const pintarLineas = () => {
+    const ls = lineas();
+    const fuera = pedido.filter((l) => !ls.some((x) => x.n === l.n)).map((l) => l.n);
+    $("#pLineas").innerHTML = (ls.length
+      ? ls.map((l) => `<div class="linea" data-n="${esc(l.n)}">
+          <div class="linea-cab"><span class="linea-n">${esc(l.n)}</span>${ctrlHTML(l.n)}<b class="linea-p">${precio(l.p.p * l.cant)}</b></div>
+          ${l.p.o ? `<small class="desc op">${esc(l.p.o)}</small>` : ""}
+          <input class="linea-nota" data-nota="${esc(l.n)}" value="${esc(l.nota || "")}" maxlength="80" placeholder="${l.p.o ? "Aclaración: qué opción querés" : "Aclaración (opcional)"}" aria-label="Aclaración para ${esc(l.n)}">
+        </div>`).join("")
+      : `<p class="nota vacio">Tu pedido está vacío. Tocá <b>+</b> en la carta para sumar productos.</p>`)
+      + (fuera.length ? `<p class="nota">Se sacó del pedido (agotado): ${fuera.map(esc).join(", ")}.</p>` : "");
+    pintarTotales();
+  };
+  const envio = () => (tipo === "delivery" ? cfg.envio || 0 : 0);
+  const pintarTotales = () => {
+    const sub = subtotal();
+    $("#pTot").innerHTML = (envio() ? `<div><span>Subtotal</span><span>${precio(sub)}</span></div><div><span>Envío</span><span>${precio(envio())}</span></div>` : "")
+      + `<div class="total"><span>Total</span><span>${precio(sub + envio())}</span></div>`;
+    $("#pEnviar").disabled = !lineas().length;
+  };
+  const pintarOpciones = () => {
+    f.querySelectorAll("[data-t]").forEach((b) => b.classList.toggle("activo", b.dataset.t === tipo));
+    f.querySelectorAll("[data-p]").forEach((b) => b.classList.toggle("activo", b.dataset.p === pago));
+    $("#pDel").hidden = tipo !== "delivery";
+    $("#pRet").hidden = tipo !== "retiro" || !carta.direccion || !cfg.d;
+    $("#pCon").hidden = pago !== "efectivo";
+    $("#pAlias").hidden = pago !== "transf";
+    pintarTotales();
+  };
+  f.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-t]"), pg = e.target.closest("[data-p]");
+    const mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
+    if (t) { tipo = t.dataset.t; pintarOpciones(); }
+    else if (pg) { pago = pg.dataset.p; pintarOpciones(); }
+    else if (mas || menos) { cambiar((mas || menos).dataset[mas ? "mas" : "menos"], mas ? 1 : -1); pintarLineas(); }
+  });
+  f.addEventListener("input", (e) => {
+    e.target.classList?.remove("falta");
+    const n = e.target.dataset?.nota;
+    if (n == null) return;
+    const l = pedido.find((x) => x.n === n);
+    if (l) { l.nota = e.target.value; guardarPedido(); }
+  });
+  pintarLineas();
+  pintarOpciones();
+
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const ls = lineas();
+    if (!ls.length) return;
+    const nombre = f.nombre.value.trim(), dir = f.dir.value.trim(), ref = f.ref.value.trim();
+    if (!nombre) { f.nombre.focus(); f.nombre.classList.add("falta"); return; }
+    if (tipo === "delivery" && !dir) { f.dir.focus(); f.dir.classList.add("falta"); return; }
+    try { localStorage.setItem(CLIENTE, JSON.stringify({ nombre, dir, ref, tipo, pago })); } catch {}
+    const sub = subtotal(), total = sub + envio();
+    const con = Math.round(Number(String(f.con.value).replace(/\D+/g, "")) || 0);
+    const nota = f.nota.value.trim();
+    const txt = [
+      `¡Hola! Quiero hacer un pedido ${tipo === "delivery" ? "para delivery" : "para retirar en el local"}:`,
+      ls.map((l) => `• ${l.cant}× ${l.n}: ${precio(l.p.p * l.cant)}${(l.nota || "").trim() ? `\n   (${l.nota.trim()})` : ""}`).join("\n"),
+      [envio() ? `Subtotal: ${precio(sub)}` : "", envio() ? `Envío: ${precio(envio())}` : "", `Total: ${precio(total)}`].filter(Boolean).join("\n"),
+      [
+        `Nombre: ${nombre}`,
+        tipo === "delivery" ? `Dirección: ${dir}${ref ? ` (${ref})` : ""}` : "",
+        `Hora: ${f.hora.value ? `${f.hora.value} h` : "lo antes posible"}`,
+        `Pago: ${pago === "efectivo" ? `efectivo${con ? ` (pago con ${precio(con)})` : ""}` : "transferencia o Mercado Pago"}`,
+        nota ? `Comentario: ${nota}` : "",
+      ].filter(Boolean).join("\n"),
+    ].join("\n\n");
+    ultimo = waLink(carta, txt);
+    window.open(ultimo, "_blank", "noopener");
+    // Listo: se vacía el pedido y queda el aviso (por si WhatsApp no se abrió)
+    pedido = [];
+    guardarPedido();
+    document.querySelectorAll(".item[data-n] .ped-ctrl").forEach((c) => { c.innerHTML = ctrlHTML(c.closest(".item").dataset.n); });
+    pintarBarra();
+    f.innerHTML = `<h2>¡Listo!</h2>
+      <p class="listo">Te abrimos WhatsApp con el pedido. <b>Tocá enviar</b> ahí y el bar te lo confirma.</p>
+      <a class="btn-wa" id="pReabrir" href="${esc(ultimo)}" target="_blank" rel="noopener">Abrir WhatsApp de nuevo</a>
+      <button type="button" class="btn-sec" data-cerrar>Volver a la carta</button>`;
+  };
 }
 
 // ── Etiquetas de categorías ──

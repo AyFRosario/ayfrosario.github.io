@@ -79,3 +79,46 @@ body.con-volver .carta { padding-bottom: calc(84px + env(safe-area-inset-bottom)
 
 /* Flechas de la fila de categorías (PC): centradas en los botones, no en el espacio de arriba */
 .desliza-env > .cats ~ .desliza-flecha { margin-top: -11px; }
+
+/* Pedidos por WhatsApp (delivery o para retirar) */
+.acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
+.acciones .btn-reservar { margin-top: 0; }
+.btn-reservar.sec { background: transparent; color: var(--tinta); }
+.ped-ayuda { margin: 12px auto 0; max-width: 320px; font-size: 14px; color: #5b5b5e; }
+.ped-ctrl { flex: 0 0 auto; align-self: center; margin-left: 4px; }
+.btn-mas { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); font: 700 20px/1 var(--f); cursor: pointer; display: inline-grid; place-items: center; padding: 0; -webkit-tap-highlight-color: transparent; }
+.cant-ctrl { display: inline-flex; align-items: center; border-radius: 999px; background: var(--tinta); color: #fff; }
+.cant-ctrl button { width: 32px; height: 34px; border: 0; padding: 0; background: transparent; color: inherit; font: 700 19px/1 var(--f); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.cant-ctrl b { min-width: 16px; text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }
+.barra-pedido { position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; padding: 10px 18px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--papel) 70%, rgba(246, 244, 240, 0)); }
+.barra-pedido[hidden] { display: none; }
+.barra-pedido button { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 644px; margin: 0 auto; padding: 13px 18px; border: 0; border-radius: 14px; background: var(--tinta); color: #fff; font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); }
+.bp-cant { min-width: 26px; height: 26px; padding: 0 6px; border-radius: 999px; background: #fff; color: var(--tinta); display: inline-grid; place-items: center; font-size: 14px; }
+.bp-txt { flex: 1; text-align: left; }
+body.con-pedido .carta { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+body.con-pedido .al-app { bottom: calc(84px + env(safe-area-inset-bottom)); }
+body.con-hoja { overflow: hidden; }
+.hoja.larga { max-height: 92vh; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; }
+.hoja .grupo { display: grid; gap: 12px; }
+.hoja .grupo[hidden], .hoja [hidden] { display: none; }
+.hoja .lbl { font-size: 13px; font-weight: 700; color: #5b5b5e; margin-bottom: -8px; }
+.lineas { display: grid; }
+.linea { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--linea); }
+.linea-cab { display: flex; align-items: center; gap: 10px; }
+.linea-n { flex: 1; min-width: 0; font-weight: 500; }
+.linea-p { min-width: 74px; text-align: right; font-variant-numeric: tabular-nums; }
+.hoja .linea-nota { min-height: 40px; padding: 8px 12px; }
+.lineas .desc.op { margin: 0; }
+.nota.vacio { text-align: left; font-size: 14px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: #e9e5dc; }
+.seg button { font: inherit; font-size: 14px; font-weight: 700; padding: 9px 6px; border: 0; border-radius: 9px; background: transparent; color: #5b5b5e; cursor: pointer; line-height: 1.25; }
+.seg button.activo { background: #fff; color: var(--tinta); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.ped-tipo { margin: 0; font-weight: 700; }
+.hoja .nota.zona, .hoja .nota.alias { text-align: left; font-size: 13px; color: #5b5b5e; margin: -4px 0 0 !important; }
+.totales { display: grid; gap: 3px; font-size: 15px; font-variant-numeric: tabular-nums; }
+.totales div { display: flex; justify-content: space-between; }
+.totales .total { font-weight: 700; font-size: 18px; border-top: 1px solid var(--linea); padding-top: 8px; margin-top: 3px; }
+.btn-wa:disabled { opacity: 0.45; cursor: default; }
+a.btn-wa { display: block; text-align: center; text-decoration: none; }
+.hoja input.falta { border-color: #b3261e; outline: 2px solid #b3261e; outline-offset: -1px; }
+.hoja .listo { margin: 0; font-size: 15px; }

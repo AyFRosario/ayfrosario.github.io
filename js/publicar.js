@@ -53,6 +53,10 @@ export function construirCarta() {
     whatsapp: c.whatsapp || "",
     wa: waLink(c.whatsapp).replace("https://wa.me/", ""),
     reservas: c.reservasCarta !== false,
+    // Pedidos por WhatsApp: d = delivery, r = retiro, envío fijo, zona y alias para transferir
+    pedidos: c.pedidosCarta && (c.pedidosDelivery !== false || c.pedidosRetiro !== false)
+      ? { d: c.pedidosDelivery !== false, r: c.pedidosRetiro !== false, envio: Math.max(0, Math.round(Number(c.envio) || 0)), zona: c.pedidosZona || "", alias: c.alias || "" }
+      : null,
     mesas: Object.fromEntries(S.mesas.map((m) => [m.id, m.nombre])),
     cats,
   };
@@ -87,15 +91,19 @@ export function detenerPublicacion() {
 }
 
 // Dirección pública de la carta (con el id de mesa si corresponde)
-export function urlCarta(mesaId = "", { reservar = false } = {}) {
+export function urlCarta(mesaId = "", { reservar = false, pedir = false } = {}) {
   const base = location.origin + location.pathname.replace(/[^/]*$/, "") + "carta.html";
   const q = new URLSearchParams();
   if (mesaId) q.set("m", mesaId);
   if (new URLSearchParams(location.search).has("demo")) q.set("demo", "");
   if (reservar) q.set("reservar", "");
+  if (pedir) q.set("pedir", "");
   const s = q.toString().replace(/=(&|$)/g, "$1");
   return s ? `${base}?${s}` : base;
 }
 
 // Enlace para reservar: la misma carta, con el formulario de reserva ya abierto
 export const urlReservas = () => urlCarta("", { reservar: true });
+
+// Enlace para pedir: la carta lista para armar un pedido (delivery o para retirar)
+export const urlPedir = () => urlCarta("", { pedir: true });

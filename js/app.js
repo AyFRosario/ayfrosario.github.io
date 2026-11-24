@@ -11,7 +11,7 @@ import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
 import { nuevaVentaRapida, rapidasLocales } from "./pedidos.js";
 import { activarDeslizables } from "./desliza.js";
 
-const VERSION = "1.2.8";
+const VERSION = "1.3.0";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";

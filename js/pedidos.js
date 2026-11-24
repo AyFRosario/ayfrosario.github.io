@@ -78,7 +78,12 @@ function formPedido({ tipo, c = null }) {
       </div>
       <div id="pDel">
         <label class="campo"><span>Dirección</span><input class="input" id="pDir" value="${esc(cli.direccion || "")}" placeholder="Calle 1234, piso, depto"></label>
-        <label class="campo"><span>Costo de envío</span><input class="input" id="pEnv" inputmode="decimal" value="${envioAct ? Math.round(envioAct.precio) : nuevo ? (S.config.envio || "") : ""}" placeholder="$ 0"></label>
+        <div class="dos-col">
+          <label class="campo"><span>Costo de envío</span><input class="input" id="pEnv" inputmode="decimal" value="${envioAct ? Math.round(envioAct.precio) : nuevo ? (S.config.envio || "") : ""}" placeholder="$ 0"></label>
+          <label class="campo"><span>Pago</span><select class="input" id="pPago">
+            <option value="">Paga al recibir</option>
+            <option value="pagado" ${cli.pago === "pagado" ? "selected" : ""}>Ya pagó (transferencia o MP)</option></select></label>
+        </div>
       </div>
       <label class="campo"><span>Nota</span><input class="input" id="pNota" value="${esc(cli.nota || "")}" placeholder="Pagó por transferencia, tocar timbre…"></label>
       <p class="ayuda">Si no ponés hora, es para lo antes posible.</p>
@@ -103,7 +108,7 @@ function formPedido({ tipo, c = null }) {
 
   $("#fPed").onsubmit = (e) => {
     e.preventDefault();
-    const cliente = { nombre: $("#pNom").value.trim(), telefono: $("#pTel").value.trim(), direccion: t === "delivery" ? $("#pDir").value.trim() : "", nota: $("#pNota").value.trim() };
+    const cliente = { nombre: $("#pNom").value.trim(), telefono: $("#pTel").value.trim(), direccion: t === "delivery" ? $("#pDir").value.trim() : "", nota: $("#pNota").value.trim(), pago: t === "delivery" ? $("#pPago").value : "" };
     if (!cliente.nombre) return toast("Poné el nombre de quien pide", "error");
     if (t === "delivery" && !cliente.direccion) { $("#pDir").focus(); return toast("Falta la dirección", "error"); }
     const hh = $("#pHora").value;
@@ -195,6 +200,35 @@ export function mensajesPedido(c) {
   if (c.tipo === "delivery") r.push({ k: "camino", t: "Va en camino", txt: `¡Hola ${n}! Tu pedido de ${neg} ya salió y va en camino. Total: ${fmt(total)}. ¡Que lo disfrutes!` });
   else r.push({ k: "listo", t: "Está listo para retirar", txt: `¡Hola ${n}! Tu pedido de ${neg} ya está listo para retirar${dir}. ¡Te esperamos!` });
   return r;
+}
+
+// ── Avisar al cadete (propio, del barrio o una cadetería) ──
+// Le manda por WhatsApp a quién entregar, la dirección y cuánto cobrar.
+// Sin número cargado, WhatsApp deja elegir el contacto.
+export function mensajeCadete(c) {
+  const cli = c.cliente || {};
+  const neg = S.config.nombre || "A&F";
+  const total = totalItems(itemsDe(c.id));
+  const its = vigentes(itemsDe(c.id)).filter((i) => i.productoId !== "envio");
+  const bultos = its.reduce((s, i) => s + i.cant, 0);
+  return [
+    `Envío de ${neg}`,
+    `Retirar en: ${S.config.direccion || neg}`,
+    `Entregar a: ${cli.nombre || "Sin nombre"}${cli.telefono ? ` · ${cli.telefono}` : ""}`,
+    `Dirección: ${cli.direccion || "(a confirmar)"}`,
+    `Hora: ${c.hora ? `${c.hora} h` : "lo antes posible"}`,
+    cli.nota ? `Nota: ${cli.nota}` : "",
+    bultos ? `Lleva: ${bultos} producto${bultos === 1 ? "" : "s"}` : "",
+    cli.pago === "pagado" ? "Ya está pagado: no cobrar." : `Cobrar: ${fmt(total)}`,
+  ].filter(Boolean).join("\n");
+}
+
+export function avisarCadete(c) {
+  if (c?.tipo !== "delivery") return;
+  const num = S.config.cadeteWa;
+  const txt = mensajeCadete(c);
+  window.open(num && waLink(num) ? waLink(num, txt) : "https://wa.me/?text=" + encodeURIComponent(txt), "_blank", "noopener");
+  log("pedido", `Aviso al cadete${S.config.cadeteNombre ? ` (${S.config.cadeteNombre})` : ""}: ${c.cliente?.nombre || ""}`, { comandaId: c.id });
 }
 
 export function whatsappPedido(c) {

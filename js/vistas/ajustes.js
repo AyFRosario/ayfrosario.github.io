@@ -5,12 +5,12 @@ import { S, puede, MEDIOS, dispositivo, guardarDispositivo, sectoresMesas, coman
 import { db, auth, MODO } from "../db.js";
 import { esc, icon, modal, toast, confirmar, pedirTexto, fechaHora, num } from "../util.js";
 import { imprimir, imprimirHoja, ticketPrueba, conectarBluetooth, conectarUSB, btConectada, usbConectada } from "../print.js";
-import { urlCarta, urlReservas } from "../publicar.js";
+import { urlCarta, urlReservas, urlPedir } from "../publicar.js";
 import { qrcode } from "../vendor/qrcode.mjs";
 import { descargarRespaldo, diasSinRespaldo } from "../respaldo.js";
 import { firmaHTML, iconoContacto, usuarioRed } from "../firma.js";
 
-const VERSION_APP = "1.2.8";
+const VERSION_APP = "1.3.0";
 
 const MODOS = {
   ninguna: { t: "Sin impresora", d: "Este dispositivo no imprime." },
@@ -29,7 +29,7 @@ export function mount(root) {
   root.innerHTML = `
     <div class="ajustes">
       <section class="tarjeta" id="aDisp"></section>
-      ${negocio ? `<section class="tarjeta" id="aCarta"></section><section class="tarjeta" id="aResp"></section><section class="tarjeta" id="aMesas"></section><section class="tarjeta" id="aTurnos"></section><section class="tarjeta" id="aNeg"></section>` : ""}
+      ${negocio ? `<section class="tarjeta" id="aCarta"></section><section class="tarjeta" id="aPedidos"></section><section class="tarjeta" id="aResp"></section><section class="tarjeta" id="aMesas"></section><section class="tarjeta" id="aTurnos"></section><section class="tarjeta" id="aNeg"></section>` : ""}
       ${MODO === "demo" ? `<section class="tarjeta"><h3>Modo demo</h3><p class="ayuda">Los datos están solo en este navegador.</p><button class="btn btn-peligro" data-act="reset">Reiniciar datos del demo</button></section>` : ""}
       <footer class="ajustes-pie"><img src="img/logo.svg" alt="A&F"><small>Versión ${VERSION_APP}</small>${firmaHTML()}</footer>
     </div>`;
@@ -74,7 +74,6 @@ export function mount(root) {
         <label class="campo"><span>Nombre</span><input class="input" id="nNom" value="${esc(c.nombre)}"></label>
         <label class="campo"><span>Lema (sale en los tickets)</span><input class="input" id="nLema" value="${esc(c.lema || "")}"></label>
         <label class="campo"><span>Pie del ticket</span><input class="input" id="nPie" value="${esc(c.pieTicket || "")}"></label>
-        <label class="campo"><span>Costo de envío habitual (delivery)</span><input class="input" id="nEnvio" inputmode="decimal" value="${c.envio ? Math.round(c.envio) : ""}" placeholder="$ 0"><small class="ayuda">Se propone al crear un delivery; se puede cambiar en cada pedido.</small></label>
         <div class="dos-col">
           <label class="campo"><span>Dirección</span><input class="input" id="nDir" value="${esc(c.direccion || "")}" placeholder="San Martín 2920"></label>
           <label class="campo"><span>Horario</span><input class="input" id="nHor" value="${esc(c.horario || "")}" placeholder="Mar a dom de 19 a 1"></label>
@@ -111,7 +110,6 @@ export function mount(root) {
         nombre: el.querySelector("#nNom").value.trim() || "A&F",
         lema: el.querySelector("#nLema").value.trim(),
         pieTicket: el.querySelector("#nPie").value.trim(),
-        envio: Math.max(0, Math.round(num(el.querySelector("#nEnvio").value)) || 0),
         mozoCobra: el.querySelector("#nMozo").checked,
         cuentaCorriente: el.querySelector("#nCuenta").checked,
         reservasCarta: el.querySelector("#nResCarta").checked,
@@ -128,6 +126,52 @@ export function mount(root) {
       });
       log("ajustes", "Datos del negocio actualizados");
       toast("Guardado");
+    };
+  }
+
+  // ── Pedidos por la carta: delivery y para retirar, por WhatsApp ──
+  function renderPedidos() {
+    const el = root.querySelector("#aPedidos");
+    if (!el) return;
+    const c = S.config;
+    el.innerHTML = `
+      <h3>Pedidos por la carta</h3>
+      <p class="ayuda">El cliente arma el pedido en la carta QR y lo manda por WhatsApp al bar, con el detalle, el envío y el total. El bar lo confirma por WhatsApp y lo carga como un pedido más (Salón → Pedidos).</p>
+      <form class="form" id="fPeds" style="margin-top:10px">
+        <label class="switch"><input type="checkbox" id="kOn" ${c.pedidosCarta ? "checked" : ""}><span>Recibir pedidos desde la carta QR</span></label>
+        ${waLink(c.whatsapp) ? "" : `<p class="ayuda" id="kSinWa">${icon("alerta", "mini")} Falta el WhatsApp del bar (en <b>Negocio</b>, más abajo): los pedidos llegan a ese número.</p>`}
+        <div class="form" id="kDet" ${c.pedidosCarta ? "" : "hidden"}>
+          <div class="campo"><span>Cómo se entregan</span><div class="checks">
+            <label class="check"><input type="checkbox" id="kDel" ${c.pedidosDelivery !== false ? "checked" : ""}> Delivery</label>
+            <label class="check"><input type="checkbox" id="kRet" ${c.pedidosRetiro !== false ? "checked" : ""}> Retiro en el local</label></div></div>
+          <label class="campo"><span>Zona de envío (opcional)</span><input class="input" id="kZona" maxlength="120" value="${esc(c.pedidosZona || "")}" placeholder="Echesortu, Lourdes y Centro"><small class="ayuda">El cliente la ve antes de pedir delivery.</small></label>
+          <label class="campo"><span>Alias para transferencias (opcional)</span><input class="input" id="kAlias" maxlength="60" value="${esc(c.alias || "")}" placeholder="ayf.rosario"><small class="ayuda">Lo ve el cliente si elige pagar por transferencia o Mercado Pago.</small></label>
+        </div>
+        <label class="campo"><span>Envío (precio fijo)</span><input class="input chico" id="kEnvio" inputmode="decimal" value="${c.envio ? Math.round(c.envio) : ""}" placeholder="$ 0"><small class="ayuda">Se suma a los pedidos de delivery de la carta y se propone al cargar un delivery a mano (ahí se puede cambiar). En blanco, el envío no se cobra.</small></label>
+        <div class="campo"><span>Cadete o cadetería</span>
+          <div class="dos-col">
+            <input class="input" id="kCadNom" maxlength="40" value="${esc(c.cadeteNombre || "")}" placeholder="Nombre (Juan, Cadetería Oroño…)" aria-label="Nombre del cadete o la cadetería">
+            <input class="input" id="kCadWa" inputmode="tel" maxlength="30" value="${esc(c.cadeteWa || "")}" placeholder="WhatsApp: 341 555-1234" aria-label="WhatsApp del cadete o la cadetería">
+          </div>
+          <small class="ayuda">Puede ser un cadete propio, uno del barrio o una cadetería. En cada delivery, <b>Avisar al cadete</b> le manda por WhatsApp a quién entregar, la dirección y cuánto cobrar. Si lo dejás en blanco, WhatsApp te deja elegir el contacto cada vez.</small></div>
+        <button class="btn btn-pri">Guardar</button>
+      </form>`;
+    el.querySelector("#kOn").onchange = (e) => { el.querySelector("#kDet").hidden = !e.target.checked; };
+    el.querySelector("#fPeds").onsubmit = (e) => {
+      e.preventDefault();
+      const $ = (s) => el.querySelector(s);
+      const on = $("#kOn").checked, del = $("#kDel").checked, ret = $("#kRet").checked;
+      if (on && !del && !ret) return toast("Elegí delivery, retiro en el local o los dos", "error");
+      const cadWa = $("#kCadWa").value.trim();
+      if (cadWa && (cadWa.replace(/\D+/g, "").length < 10 || !waLink(cadWa))) { $("#kCadWa").focus(); return toast("Revisá el WhatsApp del cadete (con característica: 341…)", "error"); }
+      db.merge("config", "general", {
+        pedidosCarta: on, pedidosDelivery: del, pedidosRetiro: ret,
+        pedidosZona: $("#kZona").value.trim(), alias: $("#kAlias").value.trim(),
+        envio: Math.max(0, Math.round(num($("#kEnvio").value)) || 0),
+        cadeteNombre: $("#kCadNom").value.trim(), cadeteWa: cadWa,
+      });
+      log("ajustes", `Pedidos por la carta: ${on ? [del && "delivery", ret && "retiro"].filter(Boolean).join(" y ") : "apagados"}`);
+      toast(on ? "Listo: la carta ya recibe pedidos" : "Guardado");
     };
   }
 
@@ -161,6 +205,9 @@ export function mount(root) {
             <div class="input-boton"><input class="input" id="urlReservas" readonly value="${esc(urlReservas())}"><button class="btn" data-act="copiarReservas">Copiar</button></div>
             <small class="ayuda">Abre la misma carta con el formulario de reserva ya abierto. Ideal para la bio de Instagram o para contestar a quien pregunta por una mesa.</small></div>`
         : `<p class="ayuda" id="sinReservas" style="margin-top:10px">Para tener también un enlace para reservar, cargá el WhatsApp del bar y activá "Reservar por WhatsApp" en <b>Negocio</b>, más abajo.</p>`}
+      ${puedePedir() ? `<div class="campo" style="margin-top:10px"><span>Enlace para pedir</span>
+            <div class="input-boton"><input class="input" id="urlPedir" readonly value="${esc(urlPedir())}"><button class="btn" data-act="copiarPedir">Copiar</button></div>
+            <small class="ayuda">Abre la carta lista para armar un pedido de delivery o para retirar.</small></div>` : ""}
       <div class="fila-botones" style="margin-top:12px">
         <button class="btn btn-pri" data-act="compartirCarta">${icon("mensaje")} Mensaje para compartir</button>
         <a class="btn" href="${esc(url)}">${icon("externo")} Ver la carta</a>
@@ -172,6 +219,7 @@ export function mount(root) {
 
   // Hay enlace para reservar si la carta muestra "Reservar mesa": reservas activadas y WhatsApp cargado
   const puedeReservar = () => S.config.reservasCarta !== false && !!waLink(S.config.whatsapp);
+  const puedePedir = () => !!S.config.pedidosCarta && !!waLink(S.config.whatsapp) && (S.config.pedidosDelivery !== false || S.config.pedidosRetiro !== false);
 
   // Texto listo para mandarle a un cliente: la carta y, si hay, el enlace para reservar
   function compartirCarta() {
@@ -180,6 +228,7 @@ export function mount(root) {
     const texto = [
       `¡Hola! Te compartimos la carta de ${nombre}:\n${urlCarta()}`,
       puedeReservar() ? `Para reservar una mesa:\n${urlReservas()}` : "",
+      puedePedir() ? `Para pedir ${S.config.pedidosDelivery === false ? "para retirar" : S.config.pedidosRetiro === false ? "delivery" : "delivery o para llevar"}:\n${urlPedir()}` : "",
       c.lema ? `${c.nombre ? c.nombre + " · " : ""}${c.lema}` : "",
     ].filter(Boolean).join("\n\n");
     const m = modal({
@@ -417,6 +466,9 @@ export function mount(root) {
       case "copiarCarta":
         try { await navigator.clipboard.writeText(urlCarta()); toast("Enlace de la carta copiado"); } catch { toast("No se pudo copiar"); }
         break;
+      case "copiarPedir":
+        try { await navigator.clipboard.writeText(urlPedir()); toast("Enlace para pedir copiado"); } catch { toast("No se pudo copiar"); }
+        break;
       case "copiarReservas":
         try { await navigator.clipboard.writeText(urlReservas()); toast("Enlace para reservar copiado"); } catch { toast("No se pudo copiar"); }
         break;
@@ -436,11 +488,12 @@ export function mount(root) {
   renderMesas();
   renderTurnos();
   renderCarta();
+  renderPedidos();
   renderResp();
   return {
     update(claves) {
       if (claves.includes("mesas")) renderMesas();
-      if (claves.includes("config")) { renderNeg(); renderResp(); renderCarta(); }
+      if (claves.includes("config")) { renderNeg(); renderResp(); renderCarta(); renderPedidos(); }
     },
     unmount() { soltarCarta?.(); },
   };
