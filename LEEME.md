@@ -1,4 +1,4 @@
-# A&F — versión 1.2.5
+# A&F — versión 1.2.6
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -92,8 +92,8 @@ El lector de Excel (SheetJS) se descarga la primera vez que se usa.
 
 ## 3 ter. Carta QR para los clientes
 
-- **Dónde está:** **Ajustes → Carta QR**. Ahí está la dirección de la carta (`carta.html`) y los botones para verla, imprimir los **QR de las mesas** y bajar un **QR general** en PNG para la entrada o Instagram.
-- **QR de las mesas:** se imprimen 12 por hoja A4. Cada uno abre la carta con el nombre de la mesa. Usa el id interno de la mesa, así que sigue funcionando aunque la renombres.
+- **Dónde está:** **Ajustes → Carta QR**. Ahí están la dirección de la carta (`carta.html`) y los botones para verla, **Imprimir QR** y **Descargar QR** (una imagen PNG para Instagram, la vidriera o un volante).
+- **Un solo QR para todo (v1.2.6):** el mismo código va en todas las mesas, el mostrador y la puerta. **Imprimir QR** arma hojas A4 con 12 copias para recortar (12, 24, 36 o 48). La carta muestra el botón "Reservar mesa" por WhatsApp si está activado en Ajustes → Negocio.
 - **Actualización:** la carta se publica sola. Cuando un encargado o el dueño tiene la app abierta y cambia productos, precios, stock o mesas, se vuelve a publicar en unos segundos.
 - **Qué ven los clientes:**
   - los productos activos con "Mostrar en la carta QR" marcado;

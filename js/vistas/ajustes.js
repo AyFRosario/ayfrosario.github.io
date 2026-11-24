@@ -10,7 +10,7 @@ import { qrcode } from "../vendor/qrcode.mjs";
 import { descargarRespaldo, diasSinRespaldo } from "../respaldo.js";
 import { firmaHTML, iconoContacto, usuarioRed } from "../firma.js";
 
-const VERSION_APP = "1.2.5";
+const VERSION_APP = "1.2.6";
 
 const MODOS = {
   ninguna: { t: "Sin impresora", d: "Este dispositivo no imprime." },
@@ -153,13 +153,13 @@ export function mount(root) {
     const url = urlCarta();
     el.innerHTML = `
       <h3>Carta QR</h3>
-      <p class="ayuda">Los clientes escanean el código de la mesa y ven la carta con los precios siempre al día. Se actualiza sola cuando cambiás productos, precios o stock (los agotados aparecen como "Agotado").</p>
+      <p class="ayuda">Un solo código QR para todo: las mesas, el mostrador, la puerta y las redes. Los clientes lo escanean y ven la carta con los precios siempre al día. Se actualiza sola cuando cambiás productos, precios o stock (los agotados aparecen como "Agotado").</p>
       <div class="campo" style="margin-top:12px"><span>Dirección de la carta</span>
         <div class="input-boton"><input class="input" readonly value="${esc(url)}"><button class="btn" data-act="copiarCarta">Copiar</button></div></div>
       <div class="fila-botones" style="margin-top:12px">
         <a class="btn" href="${esc(url)}">${icon("externo")} Ver la carta</a>
-        <button class="btn btn-pri" data-act="qrMesas">${icon("print")} QR de las mesas</button>
-        <button class="btn" data-act="qrGeneral">${icon("bajar")} QR general (imagen)</button>
+        <button class="btn btn-pri" data-act="qrImprimir">${icon("print")} Imprimir QR</button>
+        <button class="btn" data-act="qrGeneral">${icon("bajar")} Descargar QR (imagen)</button>
       </div>
       <p class="ayuda" style="margin-top:10px">${publicada ? `Publicada ${fechaHora(publicada.ts)} · ${n} productos.` : "Todavía no se publicó: se publica sola en unos segundos."} En la carta solo se ven los productos activos y marcados "Mostrar en la carta QR".</p>`;
   }
@@ -173,18 +173,23 @@ export function mount(root) {
   function tarjetaQr(titulo, url) {
     return `<div class="qr-tarjeta"><img src="img/logo.svg" alt="" class="qr-logo"><div class="qr-codigo">${qrSvg(url)}</div><b class="qr-mesa">${esc(titulo)}</b><span class="qr-txt">Escaneá y mirá la carta</span></div>`;
   }
-  function hojaQr() {
-    return `<div class="hoja-qr">${S.mesas.map((m) => tarjetaQr(m.nombre, urlCarta(m.id))).join("")}${tarjetaQr("Carta", urlCarta())}</div>`;
+  // Hoja con el mismo QR general repetido, para recortar y poner en las mesas, el mostrador o la puerta
+  function hojaQr(cant) {
+    const t = tarjetaQr(S.config.lema || "Nuestra carta", urlCarta()); // el logo ya dice A&F: abajo va el lema
+    return `<div class="hoja-qr">${Array.from({ length: cant }, () => t).join("")}</div>`;
   }
-  function qrMesas() {
-    if (!S.mesas.length) return toast("Primero cargá las mesas");
+  function qrImprimir() {
+    let cant = Math.min(48, Math.max(12, Math.ceil((S.mesas.length + 2) / 12) * 12)); // las mesas + mostrador y puerta, hojas completas
     const m = modal({
-      titulo: "Códigos QR de las mesas",
+      titulo: "Imprimir el QR de la carta",
       clase: "modal-ancho",
-      cuerpo: `<p class="ayuda">Uno por mesa, más uno general. En una hoja A4 entran 12. Cada código abre la carta con el nombre de la mesa; si después renombrás una mesa, el código sigue sirviendo.</p><div class="vista-hoja">${hojaQr()}</div>`,
+      cuerpo: `<p class="ayuda">El mismo código para todas las mesas, el mostrador y la puerta. En una hoja A4 entran 12 para recortar.</p>
+        <label class="campo" style="max-width:200px"><span>Cantidad</span><select class="input" id="qrCant">${[12, 24, 36, 48].map((n) => `<option value="${n}" ${n === cant ? "selected" : ""}>${n} (${n / 12} hoja${n > 12 ? "s" : ""})</option>`).join("")}</select></label>
+        <div class="vista-hoja">${hojaQr(12)}</div>`,
       pie: `<button class="btn btn-pri" data-a="imp">${icon("print")} Imprimir</button>`,
     });
-    m.el.querySelector('[data-a="imp"]').onclick = () => imprimirHoja(hojaQr());
+    m.el.querySelector("#qrCant").onchange = (e) => { cant = Number(e.target.value); };
+    m.el.querySelector('[data-a="imp"]').onclick = () => imprimirHoja(hojaQr(cant));
   }
   function qrGeneral() {
     const qr = qrcode(0, "M");
@@ -374,7 +379,7 @@ export function mount(root) {
       case "copiarCarta":
         try { await navigator.clipboard.writeText(urlCarta()); toast("Enlace copiado"); } catch { toast("No se pudo copiar"); }
         break;
-      case "qrMesas": qrMesas(); break;
+      case "qrImprimir": qrImprimir(); break;
       case "qrGeneral": qrGeneral(); break;
       case "agregarMesa": agregarMesas(false); break;
       case "agregarVarias": agregarMesas(true); break;
