@@ -1,7 +1,7 @@
 // ============================================================
 //  A&F · Productos, stock e ingreso de mercadería por escáner
 // ============================================================
-import { S, categorias, productoPorCodigo, SECTORES, log, insumosBajos } from "../store.js";
+import { S, categorias, esCatFinal, onStore, productoPorCodigo, SECTORES, log, insumosBajos } from "../store.js";
 import { db, inc } from "../db.js";
 import { esc, fmt, num, icon, modal, toast, confirmar, pedirTexto } from "../util.js";
 import { buscar } from "../buscar.js";
@@ -167,7 +167,7 @@ export function mount(root, { param } = {}) {
       if (!datos.nombre) return toast("Falta el nombre", "error");
       const stockNuevo = num($("#eStock").value);
       if (nuevo) {
-        const orden = Math.max(0, ...S.productos.map((x) => Number(x.orden) || 0)) + 1;
+        const orden = ordenEnCategoria(datos.categoria);
         db.add("productos", { ...datos, stock: stockNuevo, orden });
         log("producto", `Producto creado: ${datos.nombre} ${fmt(datos.precio)}`);
       } else {
@@ -177,6 +177,8 @@ export function mount(root, { param } = {}) {
           log("stock", `Ajuste de stock ${datos.nombre}: ${fmtCant(p.stock)} → ${fmtCant(stockNuevo)}`);
         }
         if (datos.precio !== p.precio) log("precio", `${datos.nombre}: ${fmt(p.precio)} → ${fmt(datos.precio)}`);
+        // Si cambia de categoría, va al final de la nueva (así la categoría no salta de lugar)
+        if ((datos.categoria || "Otros") !== (p.categoria || "Otros")) datos.orden = ordenEnCategoria(datos.categoria, p.id);
         db.update("productos", p.id, datos);
       }
       m.cerrar();
@@ -482,32 +484,75 @@ function fmtCant(n) {
 // La categoría es un texto en cada producto: renombrar cambia todos los
 // productos de esa categoría. El orden de la carta sale del orden de los
 // productos, así que mover una categoría reordena sus productos en bloque.
-function reordenarOps(nuevoOrden) {
+// escrito: id → orden ya mandado y que todavía puede no haber vuelto de Firebase.
+export function reordenarOps(nuevoOrden, escrito = null) {
   const ops = [];
   let n = 0;
+  const actual = (p) => (escrito?.has(p.id) ? escrito.get(p.id) : Number(p.orden));
   for (const cat of nuevoOrden) {
-    const ps = S.productos.filter((p) => (p.categoria || "Otros") === cat).sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0));
-    for (const p of ps) { n++; if (Number(p.orden) !== n) ops.push({ op: "update", col: "productos", id: p.id, data: { orden: n } }); }
+    const ps = S.productos.filter((p) => (p.categoria || "Otros") === cat).sort((a, b) => (actual(a) || 0) - (actual(b) || 0) || String(a.nombre).localeCompare(String(b.nombre), "es"));
+    for (const p of ps) {
+      n++;
+      if (actual(p) !== n) { ops.push({ op: "update", col: "productos", id: p.id, data: { orden: n } }); escrito?.set(p.id, n); }
+    }
   }
   return ops;
 }
 
+// Orden para un producto que entra a una categoría: después del último de esa
+// categoría, así la categoría no cambia de lugar. Si es nueva, al final.
+function ordenEnCategoria(cat, sinId = null) {
+  const de = S.productos.filter((x) => x.id !== sinId && (x.categoria || "Otros") === cat).map((x) => Number(x.orden) || 0);
+  return de.length ? Math.max(...de) + 0.5 : Math.max(0, ...S.productos.map((x) => Number(x.orden) || 0)) + 1;
+}
+
 export function gestionarCategorias() {
+  // La ventana trabaja con su propio orden: las flechas mueven al instante y
+  // se guarda una sola vez, un momento después del último toque (o al cerrar).
+  let orden = categorias();
+  let fija = S.config.catFija && orden.includes(S.config.catFija) ? S.config.catFija : null;
+  const escrito = new Map();
+  let timer = null;
+  const esFinal = (c) => c !== fija && esCatFinal(c);
+  const guardar = () => {
+    clearTimeout(timer);
+    timer = null;
+    const ops = reordenarOps(orden, escrito);
+    for (let i = 0; i < ops.length; i += 400) db.batch(ops.slice(i, i + 400));
+    // El orden entre las del final se guarda en la configuración
+    const finales = orden.filter(esFinal);
+    const conf = S.config.catFinal || [];
+    const nuevaFin = [...finales, ...conf.filter((f) => !finales.some((c) => normalizar(c) === normalizar(f)))];
+    if (JSON.stringify(nuevaFin) !== JSON.stringify(conf)) db.merge("config", "general", { catFinal: nuevaFin });
+  };
+  const programar = () => { clearTimeout(timer); timer = setTimeout(guardar, 700); };
+  // Deja el orden como [fijada, las del medio, las del final]; "nueva" entra al bloque del final en su lugar
+  const conf = (x) => (S.config.catFinal || []).findIndex((f) => normalizar(f) === normalizar(x));
+  const acomodar = (nueva = null) => {
+    const medio = orden.filter((c) => c !== fija && !esFinal(c));
+    const fin = orden.filter((c) => esFinal(c) && c !== nueva);
+    if (nueva && esFinal(nueva)) { const i = fin.findIndex((x) => conf(x) > conf(nueva)); fin.splice(i < 0 ? fin.length : i, 0, nueva); }
+    orden = [...(fija ? [fija] : []), ...medio, ...fin];
+  };
   const m = modal({
     titulo: "Categorías",
-    cuerpo: `<p class="ayuda">El orden es el de la carta QR y el de la comanda de los mozos. Con ${icon("pin")} una categoría queda <b>siempre primera</b>, aunque se vuelva a importar el Excel. Renombrar cambia todos los productos de la categoría.</p><div class="lista" id="gcL"></div>`,
+    cuerpo: `<p class="ayuda">El orden es el de la carta QR y el de la comanda de los mozos. Con ${icon("pin")} una categoría queda <b>siempre primera</b>, aunque se vuelva a importar el Excel.<span id="gcFin"></span> Renombrar cambia todos los productos de la categoría.</p><div class="lista" id="gcL"></div>`,
+    onClose: () => { if (timer) guardar(); soltar(); },
   });
   const cont = m.el.querySelector("#gcL");
   const pintar = () => {
-    const cats = categorias();
-    const fija = S.config.catFija && cats.includes(S.config.catFija) ? S.config.catFija : null;
-    cont.innerHTML = cats.map((c, k) => {
+    const fin = orden.filter(esFinal);
+    m.el.querySelector("#gcFin").innerHTML = fin.length ? ` <b>${fin.map(esc).join(", ").replace(/, ([^,]*)$/, " y $1")}</b> van siempre al final.` : "";
+    cont.innerHTML = orden.map((c, k) => {
       const n = S.productos.filter((p) => (p.categoria || "Otros") === c).length;
       const esFija = c === fija;
-      // La fijada no se mueve, y ninguna puede pasar por encima de ella
-      const subeNo = k === 0 || esFija || (fija && k === 1);
-      const bajaNo = k === cats.length - 1 || esFija;
-      return `<div class="fila-lista gc-fila ${esFija ? "fija" : ""}"><div><b>${esc(c)}</b><small>${n} producto${n === 1 ? "" : "s"}${esFija ? " · siempre primera" : ""}</small></div>
+      const final = esFinal(c);
+      // La fijada no se mueve; las del medio no pasan por encima de la fijada ni entre las del final;
+      // las del final se ordenan solo entre ellas.
+      const tipo = (x) => (x === fija ? "f" : esFinal(x) ? "z" : "m");
+      const subeNo = esFija || k === 0 || tipo(orden[k - 1]) !== tipo(c);
+      const bajaNo = esFija || k === orden.length - 1 || tipo(orden[k + 1]) !== tipo(c);
+      return `<div class="fila-lista gc-fila ${esFija ? "fija" : ""} ${final ? "final" : ""}" data-cat="${esc(c)}"><div><b>${esc(c)}</b><small>${n} producto${n === 1 ? "" : "s"}${esFija ? " · siempre primera" : final ? " · siempre al final" : ""}</small></div>
         <div class="gc-acc">
           <button class="btn-icono gc-pin ${esFija ? "activo" : ""}" data-fija="${k}" aria-pressed="${esFija}" aria-label="${esFija ? "Dejar de fijar" : "Fijar primera"}" title="${esFija ? "Dejar de fijar" : "Fijar siempre primera"}">${icon("pin")}</button>
           <button class="btn-icono" data-sube="${k}" ${subeNo ? "disabled" : ""} aria-label="Subir">${icon("arriba")}</button>
@@ -516,42 +561,65 @@ export function gestionarCategorias() {
         </div></div>`;
     }).join("") || `<p class="ayuda">Todavía no hay productos.</p>`;
   };
+  // Si aparece o desaparece una categoría (otro dispositivo, un renombre), se acomoda sin perder lo movido
+  const soltar = onStore((k) => {
+    if (k !== "productos" && k !== "config") return;
+    const actual = categorias();
+    const antes = orden.join("\u0001");
+    orden = orden.filter((c) => actual.includes(c));
+    for (const c of actual) if (!orden.includes(c)) {
+      const iFin = orden.findIndex(esFinal);
+      orden.splice(esFinal(c) || iFin < 0 ? orden.length : iFin, 0, c);
+    }
+    if (fija && !orden.includes(fija)) fija = null;
+    if (orden.join("\u0001") !== antes || k === "productos") pintar();
+  });
+  const mover = (desde, hasta) => {
+    const [c] = orden.splice(desde, 1);
+    orden.splice(hasta, 0, c);
+    pintar();
+    programar();
+    const b = cont.querySelector(`[data-cat="${CSS.escape(c)}"] [data-${hasta < desde ? "sube" : "baja"}]`);
+    (b && !b.disabled ? b : cont.querySelector(`[data-cat="${CSS.escape(c)}"] [data-ren]`))?.focus();
+  };
   cont.addEventListener("click", async (e) => {
-    const cats = categorias();
     const sube = e.target.closest("[data-sube]"), baja = e.target.closest("[data-baja]"), ren = e.target.closest("[data-ren]");
     const fijar = e.target.closest("[data-fija]");
     if (fijar) {
-      const c = cats[Number(fijar.dataset.fija)];
-      const yaFija = S.config.catFija === c;
-      db.merge("config", "general", { catFija: yaFija ? null : c });
-      // También se reordenan los productos, así el orden guardado coincide
-      if (!yaFija) { const ops = reordenarOps([c, ...cats.filter((x) => x !== c)]); if (ops.length) db.batch(ops); }
+      const c = orden[Number(fijar.dataset.fija)];
+      const yaFija = fija === c;
+      const antes = fija;
+      fija = yaFija ? null : c;
+      db.merge("config", "general", { catFija: fija });
+      // La que se suelta queda arriba (ya se puede mover), o vuelve a su lugar entre las del final
+      acomodar(yaFija ? c : antes);
       log("productos", yaFija ? `Categoría "${c}" ya no está fija` : `Categoría "${c}" fija primera`);
       toast(yaFija ? `"${c}" ya no está fija` : `"${c}" queda siempre primera`);
-      setTimeout(pintar, 60);
+      pintar();
+      programar();
       return;
     }
     if (sube || baja) {
       const k = Number((sube || baja).dataset[sube ? "sube" : "baja"]);
       const j = sube ? k - 1 : k + 1;
-      if (j < 0 || j >= cats.length) return;
-      [cats[k], cats[j]] = [cats[j], cats[k]];
-      const ops = reordenarOps(cats);
-      if (ops.length) db.batch(ops);
-      setTimeout(pintar, 40);
+      if (j < 0 || j >= orden.length || (sube || baja).disabled) return;
+      mover(k, j);
       return;
     }
     if (ren) {
-      const viejo = cats[Number(ren.dataset.ren)];
+      const viejo = orden[Number(ren.dataset.ren)];
       const nuevoTxt = await pedirTexto(`Renombrar "${viejo}"`, { valor: viejo, ok: "Renombrar" });
       if (nuevoTxt == null) return;
       const limpio = nuevoTxt.trim();
       if (!limpio || limpio === viejo) return;
-      const existente = cats.find((c) => c !== viejo && normalizar(c) === normalizar(limpio));
+      const existente = orden.find((c) => c !== viejo && normalizar(c) === normalizar(limpio));
       if (existente && !(await confirmar(`Ya existe "${existente}". ¿Juntar los productos de "${viejo}" en "${existente}"?`, { ok: "Juntar" }))) return;
+      if (timer) guardar(); // primero se guarda lo movido, con los nombres de antes
       renombrarCategoria(viejo, existente || limpio);
+      orden = existente ? orden.filter((c) => c !== viejo) : orden.map((c) => (c === viejo ? limpio : c));
+      if (fija === viejo) fija = existente || limpio;
       toast(`"${viejo}" ahora es "${existente || limpio}"`);
-      setTimeout(pintar, 40);
+      pintar();
     }
   });
   pintar();

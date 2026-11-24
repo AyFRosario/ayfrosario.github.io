@@ -373,8 +373,8 @@ function hojaCarta(XLSX, filas) {
 
 // Hoja "Carta" con el mismo formato que el importador (sirve para volver a cargarla)
 export function hojaCartaActual(XLSX) {
+  // S.productos ya está en el orden de las categorías (la fijada primera, las bebidas al final)
   const filas = [...S.productos]
-    .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
     .map((p) => [
       p.nombre, p.categoria || "Otros", Math.round(Number(p.precio) || 0), p.descripcion || "", NOMBRE_SECTOR[p.sector || "cocina"],
       p.codigo || "", p.controlStock ? "Sí" : "No",

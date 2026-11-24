@@ -776,7 +776,7 @@ body.offline .barra-sup { box-shadow: inset 0 -3px 0 var(--rojo); }
 .gc-acc .btn-icono:disabled { opacity: 0.25; }
 .gc-pin { opacity: .45; }
 .gc-pin.activo { opacity: 1; color: var(--tinta); background: var(--sup2); }
-.gc-fila.fija { background: var(--sup2); }
+.gc-fila.fija, .gc-fila.final { background: var(--sup2); }
 #eCatNueva { margin-top: 6px; }
 
 /* "Más": grupos */

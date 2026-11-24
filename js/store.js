@@ -2,6 +2,7 @@
 //  A&F · Estado compartido, roles y datos del dispositivo
 // ============================================================
 import { db } from "./db.js";
+import { normalizar } from "./util.js";
 
 export const CONFIG_DEF = {
   nombre: "A&F",
@@ -175,10 +176,27 @@ export function categorias() {
     if (!orden.has(c) || o < orden.get(c)) orden.set(c, o);
   }
   const lista = [...orden.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map((x) => x[0]);
-  // Una categoría fijada (Productos → Categorías) va siempre primera: en la comanda,
-  // en Productos y en la carta QR, aunque se vuelva a importar el Excel.
-  const fija = S.config?.catFija;
-  return fija && lista.includes(fija) ? [fija, ...lista.filter((c) => c !== fija)] : lista;
+  // Una categoría fijada (Productos → Categorías) va siempre primera, y las de
+  // "catFinal" (las bebidas y los tragos) siempre al final, en ese orden: en la
+  // comanda, en Productos y en la carta QR, aunque se vuelva a importar el Excel.
+  const fija = S.config?.catFija && lista.includes(S.config.catFija) ? S.config.catFija : null;
+  const finales = [];
+  for (const f of S.config?.catFinal || []) {
+    const c = lista.find((x) => normalizar(x) === normalizar(f));
+    if (c && c !== fija && !finales.includes(c)) finales.push(c);
+  }
+  return [...(fija ? [fija] : []), ...lista.filter((c) => c !== fija && !finales.includes(c)), ...finales];
+}
+
+// ¿Es una de las categorías que van siempre al final?
+export const esCatFinal = (c) => (S.config?.catFinal || []).some((f) => normalizar(f) === normalizar(c));
+
+// Los productos en el orden de las categorías (y dentro de cada una, el suyo):
+// así "Todas" y las listas siguen el mismo orden que las etiquetas.
+export function ordenarProductos() {
+  const pos = new Map(categorias().map((c, i) => [c, i]));
+  S.productos.sort((x, y) => (pos.get(x.categoria || "Otros") ?? 999) - (pos.get(y.categoria || "Otros") ?? 999)
+    || (Number(x.orden) || 0) - (Number(y.orden) || 0) || String(x.nombre).localeCompare(String(y.nombre), "es"));
 }
 
 export function sectoresMesas() {

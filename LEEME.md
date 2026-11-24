@@ -1,4 +1,4 @@
-# A&F — versión 1.2.7
+# A&F — versión 1.2.8
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -332,6 +332,14 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
   - En **Productos → Categorías**, el botón del pin deja una categoría **siempre primera**: en la comanda (después de Todas), en Productos y en la carta QR. Queda primera aunque se vuelva a importar el Excel.
   - Se puede fijar una sola. Tocando el pin de nuevo se suelta. Si se renombra, sigue fija.
   - Al actualizar a esta versión, **Menús** queda fija sola.
+
+## 3 quattuordecies. Bebidas y tragos al final; flechas de Categorías (v1.2.8)
+
+- **Siempre al final:** **Bebidas sin alcohol**, **Bebidas con alcohol** y **Tragos**, en ese orden, en la comanda, en Productos, en "Todas" y en la carta QR. Igual que Menús (fija primera), se mantienen aunque se vuelva a importar el Excel. Se reconocen sin importar mayúsculas ni acentos. En la configuración es `catFinal`.
+- **Flechas de Productos → Categorías:** mueven al instante y se guarda una sola vez, un momento después del último toque (o al cerrar la ventana). Antes cada toque guardaba todos los productos y la lista se volvía a dibujar antes de que Firebase contestara, así que a veces parecía que no se movía o se movía otra.
+  - Las del medio no pasan por encima de la fija ni entre las del final.
+  - Las del final se ordenan solo entre ellas.
+- **Cambiar un producto de categoría** (o cargar uno nuevo) lo pone último dentro de su categoría. Antes un producto con número de orden bajo podía arrastrar toda su categoría hacia arriba (por eso Bebidas sin alcohol aparecía segunda).
 
 ## 4. Escáner de códigos
 

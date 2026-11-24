@@ -3,7 +3,7 @@
 // ============================================================
 import { CONFIG } from "./config.js";
 import { initDB, db, auth, MODO, onError } from "./db.js";
-import { S, emit, onStore, puede, ROLES, CONFIG_DEF, fechaStr, categorias, dispositivo } from "./store.js";
+import { S, emit, onStore, puede, ROLES, CONFIG_DEF, fechaStr, categorias, ordenarProductos, dispositivo } from "./store.js";
 import { firmaHTML } from "./firma.js";
 import { $, esc, icon, toast, modal, confirmar, iniciales, fmt, normalizar } from "./util.js";
 import { reconectarImpresora } from "./print.js";
@@ -11,7 +11,7 @@ import { iniciarPublicacion, detenerPublicacion } from "./publicar.js";
 import { nuevaVentaRapida, rapidasLocales } from "./pedidos.js";
 import { activarDeslizables } from "./desliza.js";
 
-const VERSION = "1.2.7";
+const VERSION = "1.2.8";
 import * as vSalon from "./vistas/salon.js";
 import * as vMesa from "./vistas/mesa.js";
 import * as vCocina from "./vistas/cocina.js";
@@ -152,6 +152,17 @@ function migraciones() {
     const menus = categorias().find((c) => ["menus", "menues"].includes(normalizar(c)));
     db.merge("config", "general", { migCatFija: true, ...(menus && !S.config.catFija ? { catFija: "Menús" } : {}) });
   }
+  if (!S.config.migCatFinal) {
+    // v1.2.8: las bebidas y los tragos van siempre al final (comanda, Productos y carta QR)
+    const fin = S.config.catFinal || ["Bebidas sin alcohol", "Bebidas con alcohol", "Tragos"];
+    S.config.catFinal = fin;
+    db.merge("config", "general", { migCatFinal: true, catFinal: fin });
+    // Los productos se renumeran en ese orden, así el Excel exportado sale igual
+    const ops = vProductos.reordenarOps(categorias());
+    for (let i = 0; i < ops.length; i += 400) db.batch(ops.slice(i, i + 400));
+    ordenarProductos();
+    emit("productos");
+  }
 }
 
 // La carta QR muestra el botón "Volver a A&F" solo si en este navegador
@@ -168,14 +179,23 @@ function iniciarApp() {
   marcarSesion(true);
   // "cargado" = ya llegó la respuesta del servidor (no solo la copia local)
   const marcar = (k, meta) => { if (!meta?.fromCache) S.cargados.add(k); };
-  escuchar("config", { id: "general", meta: true }, (c, meta) => { S.config = { ...CONFIG_DEF, ...(c || {}) }; marcar("config", meta); emit("config"); migraciones(); });
+  escuchar("config", { id: "general", meta: true }, (c, meta) => {
+    const antes = JSON.stringify([S.config?.catFija, S.config?.catFinal]);
+    S.config = { ...CONFIG_DEF, ...(c || {}) };
+    marcar("config", meta);
+    emit("config");
+    // Si cambió la categoría fija o las del final, cambia el orden de los productos
+    if (JSON.stringify([S.config.catFija, S.config.catFinal]) !== antes && S.productos.length) { ordenarProductos(); emit("productos"); }
+    migraciones();
+  });
   escuchar("mesas", { meta: true }, (a, meta) => {
     S.mesas = a.sort((x, y) => (x.orden ?? 999) - (y.orden ?? 999) || String(x.nombre).localeCompare(String(y.nombre), "es", { numeric: true }));
     marcar("mesas", meta);
     emit("mesas");
   });
   escuchar("productos", { meta: true }, (a, meta) => {
-    S.productos = a.sort((x, y) => (x.orden ?? 0) - (y.orden ?? 0) || String(x.nombre).localeCompare(String(y.nombre), "es"));
+    S.productos = a;
+    ordenarProductos();
     marcar("productos", meta);
     emit("productos");
     migraciones();
