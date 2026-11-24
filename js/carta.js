@@ -10,6 +10,9 @@ import { firmaHTML, contactoHTML } from "./firma.js";
 import { activarDeslizables } from "./desliza.js";
 
 const params = new URLSearchParams(location.search);
+// Dos páginas con la misma carta: carta.html (el QR del bar, solo para mirar) y
+// pedidos.html (la de pedidos: delivery y para llevar). Se actualizan juntas.
+const MODO_PEDIDOS = document.body.dataset.modo === "pedidos" || params.has("pedir");
 const DEMO = !CONFIG.firebase || params.has("demo");
 const CACHE = "af_carta_publica";
 const raiz = document.getElementById("carta");
@@ -96,17 +99,20 @@ function render() {
   const c = carta;
   const mesa = mesaActual();
   const conDatos = c.cats.reduce((s, x) => s + x.p.length, 0);
-  const ped = !mesa && pedidosOn() && conDatos;
-  const res = !mesa && c.reservas !== false && waLink(c);
+  const ped = MODO_PEDIDOS && !mesa && pedidosOn() && conDatos;
+  const res = !MODO_PEDIDOS && !mesa && c.reservas !== false && waLink(c);
+  const cfgPed = c.pedidos || {};
   raiz.innerHTML = `
     <header class="cab">
       <img src="img/logo.svg" alt="${esc(c.nombre)}" class="logo" width="620" height="460">
       ${c.lema ? `<p class="lema">${esc(c.lema)}</p>` : ""}
       ${mesa ? `<p class="mesa">${esc(mesa)}</p>` : ""}
-      ${ped || res ? `<div class="acciones">
-        ${ped ? `<button class="btn-reservar" id="btnPed">${esc(textoPedir())}</button>` : ""}
-        ${res ? `<button class="btn-reservar ${ped ? "sec" : ""}" id="btnRes">Reservar mesa</button>` : ""}</div>` : ""}
-      ${ped && pidiendo ? `<p class="ped-ayuda" id="pedAyuda">Tocá <b>+</b> en lo que quieras y después <b>Ver pedido</b>, abajo.</p>` : ""}
+      ${res ? `<div class="acciones"><button class="btn-reservar" id="btnRes">Reservar mesa</button></div>` : ""}
+      ${MODO_PEDIDOS ? (ped
+        ? `<p class="modo-ped">Pedidos · ${esc(textoPedir())}</p>
+           ${cfgPed.d && (cfgPed.envio || cfgPed.zona) ? `<p class="ped-info">${[cfgPed.envio ? `Envío ${precio(cfgPed.envio)}` : "", cfgPed.zona ? `Zona: ${esc(cfgPed.zona)}` : ""].filter(Boolean).join(" · ")}</p>` : ""}
+           <p class="ped-ayuda" id="pedAyuda">Tocá <b>+</b> en lo que quieras y después <b>Ver pedido</b>, abajo. Te confirmamos por WhatsApp.</p>`
+        : `<p class="modo-ped">Pedidos</p><p class="ped-ayuda" id="pedCerrado">Por ahora no estamos tomando pedidos por acá.${waLink(c) ? ` <a href="${esc(waLink(c))}" target="_blank" rel="noopener">Escribinos por WhatsApp</a>.` : ""}</p>`) : ""}
     </header>
     ${conDatos ? `
     <div class="barra">
@@ -120,11 +126,6 @@ function render() {
       ${firmaHTML()}
     </footer>`;
   document.getElementById("btnRes")?.addEventListener("click", () => abrirReserva());
-  document.getElementById("btnPed")?.addEventListener("click", () => {
-    if (!pidiendo) { pidiendo = true; render(); document.getElementById("pedAyuda")?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
-    if (lineas().length) abrirPedido();
-    else document.getElementById("lista")?.scrollIntoView({ behavior: "smooth" });
-  });
   // Enlace para reservar: el formulario se abre solo, una vez (la carta se vuelve a dibujar al actualizarse)
   if (params.has("reservar") && !reservaAbierta && document.getElementById("btnRes")) {
     reservaAbierta = true;
@@ -174,7 +175,7 @@ function item(p) {
 // enviarlo (12 horas), y los datos del cliente para la próxima vez.
 const PEDIDO = "af_pedido";
 const CLIENTE = "af_cliente";
-let pidiendo = params.has("pedir");
+const pidiendo = MODO_PEDIDOS;
 let pedido = leerPedido(); // [{ n: nombre del producto, cant, nota }]
 
 function leerPedido() {
@@ -189,7 +190,7 @@ function leerCliente() { try { return JSON.parse(localStorage.getItem(CLIENTE) |
 
 function mesaActual() { return params.get("m") ? carta?.mesas?.[params.get("m")] || "" : ""; }
 const pedidosOn = () => !!(carta?.pedidos && (carta.pedidos.d || carta.pedidos.r) && waLink(carta) && !mesaActual());
-const textoPedir = () => { const x = carta.pedidos; return x.d && x.r ? "Pedir delivery o para llevar" : x.d ? "Pedir delivery" : "Pedir para retirar"; };
+const textoPedir = () => { const x = carta.pedidos; return x.d && x.r ? "Delivery y para llevar" : x.d ? "Delivery" : "Para retirar en el local"; };
 
 function producto(n) {
   for (const c of carta.cats) for (const p of c.p) if (p.n === n) return p;
@@ -455,7 +456,7 @@ async function iniciar() {
       ? `<p class="estado">La carta todavía no está publicada.</p>`
       : `<p class="estado">No pudimos cargar la carta. Revisá la conexión.</p><p class="estado"><button onclick="location.reload()">Reintentar</button></p>`;
   }
-  document.title = `Carta · ${carta?.nombre || "A&F"}`;
+  document.title = `${MODO_PEDIDOS ? "Pedidos" : "Carta"} · ${carta?.nombre || "A&F"}`;
 }
 
 activarDeslizables(".cats");

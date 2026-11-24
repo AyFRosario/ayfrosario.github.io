@@ -105,5 +105,5 @@ export function urlCarta(mesaId = "", { reservar = false, pedir = false } = {}) 
 // Enlace para reservar: la misma carta, con el formulario de reserva ya abierto
 export const urlReservas = () => urlCarta("", { reservar: true });
 
-// Enlace para pedir: la carta lista para armar un pedido (delivery o para retirar)
-export const urlPedir = () => urlCarta("", { pedir: true });
+// Carta de pedidos (delivery y para llevar): otra página con la misma carta publicada
+export const urlPedir = () => urlCarta().replace(/carta\.html/, "pedidos.html");

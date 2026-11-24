@@ -3,7 +3,7 @@
 //   apenas se publican en GitHub Pages) y, sin conexión, la copia guardada.
 // · Librerías externas (Firebase, fuentes, lector de códigos): primero la copia
 //   guardada, porque sus direcciones tienen versión fija.
-const VERSION = "af-1.3.0";
+const VERSION = "af-1.3.1";
 const APP = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/app.js", "js/config.js", "js/db.js", "js/db-demo.js", "js/db-firebase.js", "js/store.js",
@@ -11,7 +11,7 @@ const APP = [
   "js/vistas/salon.js", "js/vistas/mesa.js", "js/vistas/cobro.js", "js/vistas/cocina.js",
   "js/vistas/caja.js", "js/vistas/reportes.js", "js/vistas/resultado.js", "js/vistas/productos.js", "js/vistas/insumos.js", "js/vistas/usuarios.js", "js/vistas/ajustes.js",
   "js/vistas/reservas.js", "js/vistas/compras.js", "js/vistas/clientes.js", "js/vistas/recordatorios.js",
-  "carta.html", "css/carta.css", "js/carta.js",
+  "carta.html", "pedidos.html", "css/carta.css", "js/carta.js",
   "img/logo.svg", "img/logo-blanco.svg", "img/icono-pc-192.png", "img/icono-pc-512.png", "img/icon-192-maskable.png", "img/icon-512-maskable.png",
   "img/apple-touch-icon.png", "img/favicon-64.png", "img/contacto-whatsapp.png", "img/contacto-instagram.png", "img/contacto-facebook.png", "img/contacto-mapa.png",
 ];

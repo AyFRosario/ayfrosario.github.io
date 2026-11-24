@@ -85,6 +85,9 @@ body.con-volver .carta { padding-bottom: calc(84px + env(safe-area-inset-bottom)
 .acciones .btn-reservar { margin-top: 0; }
 .btn-reservar.sec { background: transparent; color: var(--tinta); }
 .ped-ayuda { margin: 12px auto 0; max-width: 320px; font-size: 14px; color: #5b5b5e; }
+.ped-ayuda a { color: var(--tinta); font-weight: 700; }
+.modo-ped { display: inline-block; margin: 14px 0 0; padding: 6px 16px; border-radius: 999px; background: var(--tinta); color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+.ped-info { margin: 8px 0 0; font-size: 14px; font-weight: 500; }
 .ped-ctrl { flex: 0 0 auto; align-self: center; margin-left: 4px; }
 .btn-mas { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); font: 700 20px/1 var(--f); cursor: pointer; display: inline-grid; place-items: center; padding: 0; -webkit-tap-highlight-color: transparent; }
 .cant-ctrl { display: inline-flex; align-items: center; border-radius: 999px; background: var(--tinta); color: #fff; }

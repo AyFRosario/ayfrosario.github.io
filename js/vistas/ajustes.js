@@ -10,7 +10,7 @@ import { qrcode } from "../vendor/qrcode.mjs";
 import { descargarRespaldo, diasSinRespaldo } from "../respaldo.js";
 import { firmaHTML, iconoContacto, usuarioRed } from "../firma.js";
 
-const VERSION_APP = "1.3.0";
+const VERSION_APP = "1.3.1";
 
 const MODOS = {
   ninguna: { t: "Sin impresora", d: "Este dispositivo no imprime." },
@@ -136,9 +136,14 @@ export function mount(root) {
     const c = S.config;
     el.innerHTML = `
       <h3>Pedidos por la carta</h3>
-      <p class="ayuda">El cliente arma el pedido en la carta QR y lo manda por WhatsApp al bar, con el detalle, el envío y el total. El bar lo confirma por WhatsApp y lo carga como un pedido más (Salón → Pedidos).</p>
+      <p class="ayuda">Los pedidos se hacen en la <b>carta de pedidos</b>: una página aparte, con su propio enlace, que se actualiza junto con la carta. El cliente elige los productos y manda el pedido por WhatsApp al bar, con el detalle, el envío y el total. El bar lo confirma por WhatsApp y lo carga como un pedido más (Salón → Pedidos). El QR del bar sigue mostrando la carta solo para mirar.</p>
+      ${puedePedir() ? `<div class="fila-botones" style="margin-top:10px">
+        <a class="btn" href="${esc(urlPedir())}">${icon("externo")} Ver la carta de pedidos</a>
+        <button type="button" class="btn" data-act="copiarPedir">Copiar enlace</button>
+        <button type="button" class="btn" data-act="qrPedidos">${icon("bajar")} QR de pedidos (imagen)</button>
+      </div><p class="ayuda">El QR de pedidos sirve para volantes, la bolsa del delivery o Instagram, no para las mesas.</p>` : ""}
       <form class="form" id="fPeds" style="margin-top:10px">
-        <label class="switch"><input type="checkbox" id="kOn" ${c.pedidosCarta ? "checked" : ""}><span>Recibir pedidos desde la carta QR</span></label>
+        <label class="switch"><input type="checkbox" id="kOn" ${c.pedidosCarta ? "checked" : ""}><span>Recibir pedidos (carta de pedidos)</span></label>
         ${waLink(c.whatsapp) ? "" : `<p class="ayuda" id="kSinWa">${icon("alerta", "mini")} Falta el WhatsApp del bar (en <b>Negocio</b>, más abajo): los pedidos llegan a ese número.</p>`}
         <div class="form" id="kDet" ${c.pedidosCarta ? "" : "hidden"}>
           <div class="campo"><span>Cómo se entregan</span><div class="checks">
@@ -171,7 +176,7 @@ export function mount(root) {
         cadeteNombre: $("#kCadNom").value.trim(), cadeteWa: cadWa,
       });
       log("ajustes", `Pedidos por la carta: ${on ? [del && "delivery", ret && "retiro"].filter(Boolean).join(" y ") : "apagados"}`);
-      toast(on ? "Listo: la carta ya recibe pedidos" : "Guardado");
+      toast(on ? "Listo: la carta de pedidos está activa" : "Guardado");
     };
   }
 
@@ -205,9 +210,9 @@ export function mount(root) {
             <div class="input-boton"><input class="input" id="urlReservas" readonly value="${esc(urlReservas())}"><button class="btn" data-act="copiarReservas">Copiar</button></div>
             <small class="ayuda">Abre la misma carta con el formulario de reserva ya abierto. Ideal para la bio de Instagram o para contestar a quien pregunta por una mesa.</small></div>`
         : `<p class="ayuda" id="sinReservas" style="margin-top:10px">Para tener también un enlace para reservar, cargá el WhatsApp del bar y activá "Reservar por WhatsApp" en <b>Negocio</b>, más abajo.</p>`}
-      ${puedePedir() ? `<div class="campo" style="margin-top:10px"><span>Enlace para pedir</span>
+      ${puedePedir() ? `<div class="campo" style="margin-top:10px"><span>Enlace de la carta de pedidos</span>
             <div class="input-boton"><input class="input" id="urlPedir" readonly value="${esc(urlPedir())}"><button class="btn" data-act="copiarPedir">Copiar</button></div>
-            <small class="ayuda">Abre la carta lista para armar un pedido de delivery o para retirar.</small></div>` : ""}
+            <small class="ayuda">Una página aparte para pedir delivery o para llevar, con la misma carta. La del QR queda solo para mirar.</small></div>` : ""}
       <div class="fila-botones" style="margin-top:12px">
         <button class="btn btn-pri" data-act="compartirCarta">${icon("mensaje")} Mensaje para compartir</button>
         <a class="btn" href="${esc(url)}">${icon("externo")} Ver la carta</a>
@@ -278,9 +283,9 @@ export function mount(root) {
     m.el.querySelector("#qrCant").onchange = (e) => { cant = Number(e.target.value); };
     m.el.querySelector('[data-a="imp"]').onclick = () => imprimirHoja(hojaQr(cant));
   }
-  function qrGeneral() {
+  function qrGeneral(url = urlCarta(), archivo = "qr-carta.png") {
     const qr = qrcode(0, "M");
-    qr.addData(urlCarta());
+    qr.addData(url);
     qr.make();
     const n = qr.getModuleCount(), celda = 16, margen = 4 * celda;
     const cv = document.createElement("canvas");
@@ -291,7 +296,7 @@ export function mount(root) {
     for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) g.fillRect(margen + c * celda, margen + r * celda, celda, celda);
     const a = document.createElement("a");
     a.href = cv.toDataURL("image/png");
-    a.download = "qr-carta.png";
+    a.download = archivo;
     a.click();
   }
 
@@ -467,7 +472,7 @@ export function mount(root) {
         try { await navigator.clipboard.writeText(urlCarta()); toast("Enlace de la carta copiado"); } catch { toast("No se pudo copiar"); }
         break;
       case "copiarPedir":
-        try { await navigator.clipboard.writeText(urlPedir()); toast("Enlace para pedir copiado"); } catch { toast("No se pudo copiar"); }
+        try { await navigator.clipboard.writeText(urlPedir()); toast("Enlace de la carta de pedidos copiado"); } catch { toast("No se pudo copiar"); }
         break;
       case "copiarReservas":
         try { await navigator.clipboard.writeText(urlReservas()); toast("Enlace para reservar copiado"); } catch { toast("No se pudo copiar"); }
@@ -475,6 +480,7 @@ export function mount(root) {
       case "compartirCarta": compartirCarta(); break;
       case "qrImprimir": qrImprimir(); break;
       case "qrGeneral": qrGeneral(); break;
+      case "qrPedidos": qrGeneral(urlPedir(), "qr-pedidos.png"); break;
       case "agregarMesa": agregarMesas(false); break;
       case "agregarVarias": agregarMesas(true); break;
       case "respaldo": descargarRespaldo(a); break;

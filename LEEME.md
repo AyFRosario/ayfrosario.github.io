@@ -1,4 +1,4 @@
-# A&F — versión 1.3.0
+# A&F — versión 1.3.1
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -341,25 +341,35 @@ El **día comercial empieza a las 6 de la mañana**: lo que se cobra a las 2 de 
   - Las del final se ordenan solo entre ellas.
 - **Cambiar un producto de categoría** (o cargar uno nuevo) lo pone último dentro de su categoría. Antes un producto con número de orden bajo podía arrastrar toda su categoría hacia arriba (por eso Bebidas sin alcohol aparecía segunda).
 
-## 3 quindecies. Pedidos por la carta: delivery y para retirar (v1.3)
+## 3 quindecies. Carta de pedidos: delivery y para llevar (v1.3)
 
-Primera etapa: el pedido llega por **WhatsApp**. No se guarda solo en el sistema: el bar lo confirma por WhatsApp y lo carga en **Salón → Pedidos**.
+Tres cosas separadas que salen de la misma carta (se actualizan juntas al editar productos, precios o stock):
+
+| | Dirección | Para qué |
+|---|---|---|
+| **Carta (QR)** | `carta.html` | Mirar la carta en el bar. Solo para mirar: no tiene botones para pedir. Muestra "Reservar mesa" si está activado. |
+| **Reservas** | `carta.html?reservar` | La carta con el formulario de reserva abierto. |
+| **Carta de pedidos** | `pedidos.html` | Pedir delivery o para llevar. Tiene **+** en cada producto. No muestra "Reservar mesa". |
+
+Todo se confirma por **WhatsApp** del bar. El pedido no se guarda solo en el sistema: el bar lo confirma y lo carga en **Salón → Pedidos**.
 
 - **Dónde se activa:** **Ajustes → Pedidos por la carta**.
-  - **Recibir pedidos desde la carta QR**, y cómo se entregan: **Delivery**, **Retiro en el local** o los dos.
-  - **Zona de envío** (opcional): el cliente la ve antes de pedir.
-  - **Alias para transferencias** (opcional): el cliente lo ve si elige transferencia o Mercado Pago.
-  - **Envío (precio fijo):** se suma a los delivery de la carta y se propone al cargar un delivery a mano (antes estaba en Negocio).
-  - **Cadete o cadetería:** nombre y WhatsApp. Puede ser un cadete propio, uno del barrio o una cadetería.
+  - **Recibir pedidos**, y cómo se entregan: **Delivery**, **Retiro en el local** o los dos.
+  - **Zona de envío** y **alias para transferencias** (opcionales).
+  - **Envío (precio fijo):** se suma a los delivery y se propone al cargar un delivery a mano (antes estaba en Negocio).
+  - **Cadete o cadetería:** nombre y WhatsApp.
+  - Con los pedidos activos aparecen **Ver la carta de pedidos**, **Copiar enlace** y **QR de pedidos (imagen)**. Ese QR es para volantes, la bolsa del delivery o Instagram, no para las mesas.
   - Los pedidos llegan al **WhatsApp del bar** (Negocio).
-- **En la carta:**
-  - Aparece **Pedir delivery o para llevar** (o "Pedir delivery" / "Pedir para retirar", según lo activado). Los botones **+** aparecen recién al tocarlo, así la gente en las mesas ve la carta como siempre.
-  - Abajo queda la barra **Ver pedido** con la cantidad y el total. Ahí se cambian cantidades y se pone una aclaración por producto (por ejemplo, la guarnición).
-  - El cliente elige delivery o retiro, pone nombre y dirección, la hora (opcional) y el pago: efectivo (con cuánto paga, para el vuelto) o transferencia / Mercado Pago (ve el alias).
+- **En la carta de pedidos:**
+  - Arriba dice **Pedidos · Delivery y para llevar** (o solo Delivery / Para retirar), con el envío y la zona. Cada producto tiene **+**.
+  - Abajo queda la barra **Ver pedido** con la cantidad y el total. Ahí se cambian cantidades y se pone una aclaración por producto.
+  - El cliente elige delivery o retiro, pone nombre y dirección, la hora (opcional) y el pago: efectivo (con cuánto paga) o transferencia / Mercado Pago (ve el alias).
   - Ve el subtotal, el envío y el total, y **Enviar pedido por WhatsApp** arma el mensaje completo.
   - El pedido queda guardado en el teléfono hasta mandarlo (12 horas). La próxima vez se acuerda del nombre y la dirección.
-  - Lo agotado no tiene **+** y sale del pedido. Con mesa en la dirección (QR viejos por mesa) no se ofrece pedir.
-- **Enlace para pedir** (`carta.html?pedir`): abre la carta lista para pedir. Está en **Ajustes → Carta QR**, con **Copiar**, y entra en **Mensaje para compartir**.
+  - Lo agotado no tiene **+**.
+  - Si los pedidos están apagados, la página muestra la carta con el aviso "Por ahora no estamos tomando pedidos por acá" y el WhatsApp.
+  - Los enlaces `carta.html?pedir` de la 1.3.0 siguen abriendo como carta de pedidos.
+- **Ajustes → Carta QR:** los tres enlaces con **Copiar**. **Mensaje para compartir** los trae todos.
 - **En A&F, en cada delivery:**
   - **⋯ → Avisar al cadete** manda por WhatsApp de dónde retirar, a quién entregar, la dirección, la hora, la nota y **cuánto cobrar** (con el envío).
   - En los datos del pedido se marca **Pago: Ya pagó**, y entonces el mensaje dice "no cobrar".
@@ -403,7 +413,7 @@ Lo único que necesita conexión es **entrar por primera vez** en cada dispositi
 ## 6. Archivos
 
 ```
-index.html  carta.html  manifest.json  sw.js  firestore.rules
+index.html  carta.html  pedidos.html  manifest.json  sw.js  firestore.rules
 css/app.css
 js/config.js       ← configuración (Firebase, ARCA)
 js/app.js          ← arranque, sesión, menú, navegación
@@ -413,7 +423,7 @@ js/store.js        ← estado, roles, datos del dispositivo
 js/util.js  js/buscar.js  js/scanner.js  js/print.js
 js/importar.js     ← carta desde/hacia Excel
 js/publicar.js     ← mantiene publicada la carta QR
-js/carta.js        ← página pública de la carta
+js/carta.js        ← páginas públicas: carta (QR) y carta de pedidos
 js/vendor/qrcode.mjs ← generador de QR (Kazuhiko Arase, licencia MIT)
 js/respaldo.js     ← respaldo completo en Excel
 js/firma.js        ← firma del desarrollador y contactos (WhatsApp, redes, Maps)
