@@ -87,11 +87,15 @@ export function detenerPublicacion() {
 }
 
 // Dirección pública de la carta (con el id de mesa si corresponde)
-export function urlCarta(mesaId = "") {
+export function urlCarta(mesaId = "", { reservar = false } = {}) {
   const base = location.origin + location.pathname.replace(/[^/]*$/, "") + "carta.html";
   const q = new URLSearchParams();
   if (mesaId) q.set("m", mesaId);
   if (new URLSearchParams(location.search).has("demo")) q.set("demo", "");
+  if (reservar) q.set("reservar", "");
   const s = q.toString().replace(/=(&|$)/g, "$1");
   return s ? `${base}?${s}` : base;
 }
+
+// Enlace para reservar: la misma carta, con el formulario de reserva ya abierto
+export const urlReservas = () => urlCarta("", { reservar: true });

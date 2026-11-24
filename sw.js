@@ -3,7 +3,7 @@
 //   apenas se publican en GitHub Pages) y, sin conexión, la copia guardada.
 // · Librerías externas (Firebase, fuentes, lector de códigos): primero la copia
 //   guardada, porque sus direcciones tienen versión fija.
-const VERSION = "af-1.2.6";
+const VERSION = "af-1.2.7";
 const APP = [
   "./", "index.html", "manifest.json", "css/app.css",
   "js/app.js", "js/config.js", "js/db.js", "js/db-demo.js", "js/db-firebase.js", "js/store.js",

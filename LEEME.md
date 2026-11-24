@@ -1,4 +1,4 @@
-# A&F — versión 1.2.6
+# A&F — versión 1.2.7
 
 PWA para celular, tablet y PC. HTML, CSS y JS sin compilar, igual que el resto de JPSoft. Se publica en GitHub Pages y usa Firebase (Firestore + Auth) con caché sin conexión.
 
@@ -92,7 +92,13 @@ El lector de Excel (SheetJS) se descarga la primera vez que se usa.
 
 ## 3 ter. Carta QR para los clientes
 
-- **Dónde está:** **Ajustes → Carta QR**. Ahí están la dirección de la carta (`carta.html`) y los botones para verla, **Imprimir QR** y **Descargar QR** (una imagen PNG para Instagram, la vidriera o un volante).
+- **Dónde está:** **Ajustes → Carta QR**. Ahí están los dos enlaces y los botones **Mensaje para compartir**, **Ver la carta**, **Imprimir QR** y **Descargar QR** (una imagen PNG para Instagram, la vidriera o un volante).
+- **Dos enlaces, una sola carta (v1.2.7):**
+  - **Enlace de la carta** (`carta.html`): la carta, como siempre. Es el que va en el QR.
+  - **Enlace para reservar** (`carta.html?reservar`): la misma carta, pero con el formulario de reserva ya abierto. Abajo dice **Ver la carta**, así el cliente puede mirar la carta antes de reservar. Al cerrarlo, la dirección queda como la de la carta (si recarga, no se vuelve a abrir).
+  - Cada uno tiene su botón **Copiar**, para pegarlo en la bio de Instagram, en Google Maps o en una respuesta de WhatsApp.
+  - El de reservar aparece solo si hay un WhatsApp cargado y está activado "Reservar por WhatsApp" en Negocio. Si se apaga, ese enlace muestra la carta sin formulario (los enlaces viejos no quedan rotos).
+- **Mensaje para compartir:** un texto listo con los dos enlaces y el lema, que se puede cambiar antes de mandarlo. Botones **Copiar**, **Enviar por WhatsApp** (se elige el contacto en WhatsApp) y, en el celular, **Compartir** (Instagram, mail, etc.).
 - **Un solo QR para todo (v1.2.6):** el mismo código va en todas las mesas, el mostrador y la puerta. **Imprimir QR** arma hojas A4 con 12 copias para recortar (12, 24, 36 o 48). La carta muestra el botón "Reservar mesa" por WhatsApp si está activado en Ajustes → Negocio.
 - **Actualización:** la carta se publica sola. Cuando un encargado o el dueño tiene la app abierta y cambia productos, precios, stock o mesas, se vuelve a publicar en unos segundos.
 - **Qué ven los clientes:**

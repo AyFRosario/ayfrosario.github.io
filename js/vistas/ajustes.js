@@ -1,16 +1,16 @@
 // ============================================================
 //  A&F · Ajustes: este dispositivo, negocio y mesas
 // ============================================================
-import { S, puede, MEDIOS, dispositivo, guardarDispositivo, sectoresMesas, comandaDeMesa, log, PANTALLAS_INICIO, turnosCaja } from "../store.js";
+import { S, puede, MEDIOS, dispositivo, guardarDispositivo, sectoresMesas, comandaDeMesa, log, PANTALLAS_INICIO, turnosCaja, waLink } from "../store.js";
 import { db, auth, MODO } from "../db.js";
 import { esc, icon, modal, toast, confirmar, pedirTexto, fechaHora, num } from "../util.js";
 import { imprimir, imprimirHoja, ticketPrueba, conectarBluetooth, conectarUSB, btConectada, usbConectada } from "../print.js";
-import { urlCarta } from "../publicar.js";
+import { urlCarta, urlReservas } from "../publicar.js";
 import { qrcode } from "../vendor/qrcode.mjs";
 import { descargarRespaldo, diasSinRespaldo } from "../respaldo.js";
 import { firmaHTML, iconoContacto, usuarioRed } from "../firma.js";
 
-const VERSION_APP = "1.2.6";
+const VERSION_APP = "1.2.7";
 
 const MODOS = {
   ninguna: { t: "Sin impresora", d: "Este dispositivo no imprime." },
@@ -154,14 +154,52 @@ export function mount(root) {
     el.innerHTML = `
       <h3>Carta QR</h3>
       <p class="ayuda">Un solo código QR para todo: las mesas, el mostrador, la puerta y las redes. Los clientes lo escanean y ven la carta con los precios siempre al día. Se actualiza sola cuando cambiás productos, precios o stock (los agotados aparecen como "Agotado").</p>
-      <div class="campo" style="margin-top:12px"><span>Dirección de la carta</span>
-        <div class="input-boton"><input class="input" readonly value="${esc(url)}"><button class="btn" data-act="copiarCarta">Copiar</button></div></div>
+      <div class="campo" style="margin-top:12px"><span>Enlace de la carta</span>
+        <div class="input-boton"><input class="input" id="urlCarta" readonly value="${esc(url)}"><button class="btn" data-act="copiarCarta">Copiar</button></div></div>
+      ${puedeReservar()
+        ? `<div class="campo" style="margin-top:10px"><span>Enlace para reservar</span>
+            <div class="input-boton"><input class="input" id="urlReservas" readonly value="${esc(urlReservas())}"><button class="btn" data-act="copiarReservas">Copiar</button></div>
+            <small class="ayuda">Abre la misma carta con el formulario de reserva ya abierto. Ideal para la bio de Instagram o para contestar a quien pregunta por una mesa.</small></div>`
+        : `<p class="ayuda" id="sinReservas" style="margin-top:10px">Para tener también un enlace para reservar, cargá el WhatsApp del bar y activá "Reservar por WhatsApp" en <b>Negocio</b>, más abajo.</p>`}
       <div class="fila-botones" style="margin-top:12px">
+        <button class="btn btn-pri" data-act="compartirCarta">${icon("mensaje")} Mensaje para compartir</button>
         <a class="btn" href="${esc(url)}">${icon("externo")} Ver la carta</a>
-        <button class="btn btn-pri" data-act="qrImprimir">${icon("print")} Imprimir QR</button>
+        <button class="btn" data-act="qrImprimir">${icon("print")} Imprimir QR</button>
         <button class="btn" data-act="qrGeneral">${icon("bajar")} Descargar QR (imagen)</button>
       </div>
       <p class="ayuda" style="margin-top:10px">${publicada ? `Publicada ${fechaHora(publicada.ts)} · ${n} productos.` : "Todavía no se publicó: se publica sola en unos segundos."} En la carta solo se ven los productos activos y marcados "Mostrar en la carta QR".</p>`;
+  }
+
+  // Hay enlace para reservar si la carta muestra "Reservar mesa": reservas activadas y WhatsApp cargado
+  const puedeReservar = () => S.config.reservasCarta !== false && !!waLink(S.config.whatsapp);
+
+  // Texto listo para mandarle a un cliente: la carta y, si hay, el enlace para reservar
+  function compartirCarta() {
+    const c = S.config;
+    const nombre = c.nombre || "nuestro bar";
+    const texto = [
+      `¡Hola! Te compartimos la carta de ${nombre}:\n${urlCarta()}`,
+      puedeReservar() ? `Para reservar una mesa:\n${urlReservas()}` : "",
+      c.lema ? `${c.nombre ? c.nombre + " · " : ""}${c.lema}` : "",
+    ].filter(Boolean).join("\n\n");
+    const m = modal({
+      titulo: "Mensaje para compartir",
+      clase: "modal-chico",
+      cuerpo: `<p class="ayuda">Para mandar por WhatsApp, Instagram o mail a quien pida la carta o quiera reservar. Podés cambiar el texto antes de enviarlo.</p>
+        <textarea class="input" id="msjCarta" rows="9" style="margin-top:10px;width:100%;resize:vertical">${esc(texto)}</textarea>`,
+      pie: `<button class="btn" data-a="copiar">Copiar</button>
+        ${navigator.share ? `<button class="btn" data-a="compartir">${icon("compartir")} Compartir</button>` : ""}
+        <a class="btn btn-pri" data-a="wa" target="_blank" rel="noopener">${icon("mensaje")} Enviar por WhatsApp</a>`,
+    });
+    const area = m.el.querySelector("#msjCarta");
+    const wa = m.el.querySelector('[data-a="wa"]');
+    const armarWa = () => { wa.href = "https://wa.me/?text=" + encodeURIComponent(area.value.trim()); };
+    area.addEventListener("input", armarWa);
+    armarWa();
+    m.el.querySelector('[data-a="copiar"]').onclick = async () => {
+      try { await navigator.clipboard.writeText(area.value.trim()); toast("Mensaje copiado"); } catch { toast("No se pudo copiar"); }
+    };
+    m.el.querySelector('[data-a="compartir"]')?.addEventListener("click", () => navigator.share({ text: area.value.trim() }).catch(() => {}));
   }
 
   function qrSvg(texto) {
@@ -377,8 +415,12 @@ export function mount(root) {
         renderDisp();
         break;
       case "copiarCarta":
-        try { await navigator.clipboard.writeText(urlCarta()); toast("Enlace copiado"); } catch { toast("No se pudo copiar"); }
+        try { await navigator.clipboard.writeText(urlCarta()); toast("Enlace de la carta copiado"); } catch { toast("No se pudo copiar"); }
         break;
+      case "copiarReservas":
+        try { await navigator.clipboard.writeText(urlReservas()); toast("Enlace para reservar copiado"); } catch { toast("No se pudo copiar"); }
+        break;
+      case "compartirCarta": compartirCarta(); break;
       case "qrImprimir": qrImprimir(); break;
       case "qrGeneral": qrGeneral(); break;
       case "agregarMesa": agregarMesas(false); break;
@@ -398,7 +440,7 @@ export function mount(root) {
   return {
     update(claves) {
       if (claves.includes("mesas")) renderMesas();
-      if (claves.includes("config")) { renderNeg(); renderResp(); }
+      if (claves.includes("config")) { renderNeg(); renderResp(); renderCarta(); }
     },
     unmount() { soltarCarta?.(); },
   };

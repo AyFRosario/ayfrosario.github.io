@@ -50,7 +50,8 @@ function waLink(c, texto = "") {
 const hoyStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 // Reserva: arma el mensaje y abre WhatsApp. No guarda nada: la confirma el bar.
-function abrirReserva() {
+// directo: se abrió solo, desde el enlace para reservar (carta.html?reservar)
+function abrirReserva(directo = false) {
   const fondo = document.createElement("div");
   fondo.className = "hoja-fondo";
   fondo.innerHTML = `<form class="hoja" role="dialog" aria-modal="true" aria-label="Reservar mesa">
@@ -61,12 +62,22 @@ function abrirReserva() {
     <label>Personas<select name="pers">${Array.from({ length: 12 }, (_, i) => `<option ${i === 1 ? "selected" : ""}>${i + 1}</option>`).join("")}<option value="más de 12">Más de 12</option></select></label>
     <label>Comentario (opcional)<input name="nota" placeholder="Cumpleaños, silla para bebé…"></label>
     <button class="btn-wa">Enviar por WhatsApp</button>
-    <button type="button" class="btn-sec" data-cerrar>Cancelar</button>
+    <button type="button" class="btn-sec" data-cerrar>${directo ? "Ver la carta" : "Cancelar"}</button>
     <p class="nota">Te contestamos por WhatsApp para confirmar.</p>
   </form>`;
   document.body.appendChild(fondo);
-  const cerrar = () => fondo.remove();
+  const cerrar = () => {
+    fondo.remove();
+    if (directo) cerrarDirecta = null;
+    // Al cerrar queda la dirección de la carta, así al recargar no se vuelve a abrir
+    if (params.has("reservar")) {
+      params.delete("reservar");
+      const s = params.toString().replace(/=(&|$)/g, "$1");
+      history.replaceState(null, "", location.pathname + (s ? "?" + s : "") + location.hash);
+    }
+  };
   fondo.addEventListener("click", (e) => { if (e.target === fondo || e.target.closest("[data-cerrar]")) cerrar(); });
+  if (directo) cerrarDirecta = cerrar;
   const f = fondo.querySelector("form");
   f.nombre.focus();
   f.onsubmit = (e) => {
@@ -79,6 +90,8 @@ function abrirReserva() {
   };
 }
 
+let reservaAbierta = false;
+let cerrarDirecta = null;
 function render() {
   const c = carta;
   const mesa = params.get("m") ? c.mesas?.[params.get("m")] : "";
@@ -101,7 +114,14 @@ function render() {
       ${contactoHTML(c)}
       ${firmaHTML()}
     </footer>`;
-  document.getElementById("btnRes")?.addEventListener("click", abrirReserva);
+  document.getElementById("btnRes")?.addEventListener("click", () => abrirReserva());
+  // Enlace para reservar: el formulario se abre solo, una vez (la carta se vuelve a dibujar al actualizarse)
+  if (params.has("reservar") && !reservaAbierta && document.getElementById("btnRes")) {
+    reservaAbierta = true;
+    abrirReserva(true);
+  }
+  // Se abrió con la carta guardada en el teléfono y la recién bajada ya no tiene reservas: se cierra
+  if (cerrarDirecta && !document.getElementById("btnRes")) cerrarDirecta();
   if (!conDatos) return;
   renderLista();
   const busq = document.getElementById("busq");
